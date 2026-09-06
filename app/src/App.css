@@ -1601,3 +1601,60 @@ button.account-logout:hover { border-color: var(--warn); color: var(--warn); }
 }
 .account-missing .account-name { font-size: 11px; color: var(--fg-muted); }
 .account-missing-note { font-size: 10.5px; color: var(--fg-muted); }
+
+/* Barra flutuante da seleção do terminal */
+.selection-bar {
+  position: fixed;
+  z-index: 40;
+  min-width: 190px;
+  max-width: 280px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-sidebar, #161b22);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.selection-bar-actions { display: flex; gap: 6px; }
+.selection-bar-actions button {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+.selection-bar-actions button:hover { border-color: var(--accent); color: var(--accent); }
+.selection-bar-panel { display: flex; flex-direction: column; gap: 4px; }
+.selection-bar-label { font-size: 10.5px; color: var(--fg-muted); }
+.selection-bar-panel input {
+  padding: 4px 6px;
+  font-size: 11.5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-bar);
+  color: var(--fg);
+}
+.selection-bar-section {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+.selection-bar-target {
+  text-align: left;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+.selection-bar-target:hover { background: rgba(255, 255, 255, 0.07); }
+.selection-bar-feedback { font-size: 10.5px; color: var(--warn); }

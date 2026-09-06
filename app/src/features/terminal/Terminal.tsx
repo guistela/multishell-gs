@@ -10,6 +10,7 @@ import { themeFor } from "./themes";
 import { addTaskFromTerminal } from "../agents/kanbanStore";
 import { forgetSession, markOutput } from "./agentActivity";
 import { cleanSelection } from "./selection";
+import { SelectionBar } from "./SelectionBar";
 
 import type { Session } from "../../types";
 import { pty } from "./pty";
@@ -94,6 +95,8 @@ export function Terminal({ session, onOpenSettings }: Props) {
   const sessionTheme = useAppStore((s) => s.sessions.find((x) => x.id === session.id)?.theme) ?? session.theme;
   const [exitCode, setExitCode] = useState<number | null | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  /** Barra que aparece ao soltar o mouse com texto selecionado. */
+  const [selectionBar, setSelectionBar] = useState<{ x: number; y: number; text: string } | null>(null);
   const sessionId = session.id;
 
   useEffect(() => {
@@ -331,7 +334,25 @@ export function Terminal({ session, onOpenSettings }: Props) {
         setContextMenu({ x: e.clientX, y: e.clientY });
       }}
     >
-      <div ref={hostRef} className="terminal-xterm" />
+      <div
+        ref={hostRef}
+        className="terminal-xterm"
+        onMouseUp={(e) => {
+          // A seleção só existe depois que o xterm processa o mouseup.
+          setTimeout(() => {
+            const text = termRef.current?.getSelection?.() ?? "";
+            setSelectionBar(text.trim() ? { x: e.clientX, y: e.clientY + 12, text } : null);
+          }, 0);
+        }}
+      />
+      {selectionBar && (
+        <SelectionBar
+          session={session}
+          selection={selectionBar.text}
+          at={{ x: selectionBar.x, y: selectionBar.y }}
+          onClose={() => setSelectionBar(null)}
+        />
+      )}
       {exitCode !== undefined && (
         <div className="exit-banner" role="status">
           <span>{t("exit.banner", { code: exitCode ?? "?" })}</span>
