@@ -10,22 +10,24 @@ export interface ProcRow {
   ppid: number;
   /** RSS em bytes. O `ps` devolve em KB. */
   rss: number;
+  /** Percentual de CPU do processo, como o `ps` reporta. */
+  cpu: number;
 }
 
 export function parsePsOutput(stdout: string): ProcRow[] {
   const rows: ProcRow[] = [];
   for (const line of stdout.split("\n")) {
     const parts = line.trim().split(/\s+/);
-    if (parts.length < 3) continue;
-    const [pid, ppid, rssKb] = parts.map(Number);
-    if (!Number.isFinite(pid) || !Number.isFinite(ppid) || !Number.isFinite(rssKb)) continue;
-    rows.push({ pid, ppid, rss: rssKb * 1024 });
+    if (parts.length < 4) continue;
+    const [pid, ppid, rssKb, cpu] = parts.map(Number);
+    if (!Number.isFinite(pid) || !Number.isFinite(ppid) || !Number.isFinite(rssKb) || !Number.isFinite(cpu)) continue;
+    rows.push({ pid, ppid, rss: rssKb * 1024, cpu });
   }
   return rows;
 }
 
-/** Soma o RSS de cada raiz com seus descendentes. Raiz que não existe mais fica de fora. */
-export function memoryByRoot(rows: ProcRow[], roots: number[]): Record<number, number> {
+/** Soma um campo de cada raiz com seus descendentes. Raiz que não existe mais fica de fora. */
+function sumByRoot(rows: ProcRow[], roots: number[], pick: (row: ProcRow) => number): Record<number, number> {
   const byPid = new Map<number, ProcRow>();
   const children = new Map<number, number[]>();
   for (const row of rows) {
@@ -45,7 +47,8 @@ export function memoryByRoot(rows: ProcRow[], roots: number[]): Record<number, n
       const pid = stack.pop()!;
       if (seen.has(pid)) continue; // ppid cíclico não pode virar laço infinito
       seen.add(pid);
-      total += byPid.get(pid)?.rss ?? 0;
+      const row = byPid.get(pid);
+      if (row) total += pick(row);
       for (const child of children.get(pid) ?? []) stack.push(child);
     }
     result[root] = total;
@@ -53,13 +56,25 @@ export function memoryByRoot(rows: ProcRow[], roots: number[]): Record<number, n
   return result;
 }
 
-/** Lê a memória das árvores de processo dos pids informados. Falha silenciosa: métrica é acessório. */
-export async function readProcessMemory(roots: number[]): Promise<Record<number, number>> {
-  if (roots.length === 0) return {};
+export function memoryByRoot(rows: ProcRow[], roots: number[]): Record<number, number> {
+  return sumByRoot(rows, roots, (r) => r.rss);
+}
+
+/** CPU somada da árvore: mostra que o agente está mesmo processando, não só quieto. */
+export function cpuByRoot(rows: ProcRow[], roots: number[]): Record<number, number> {
+  return sumByRoot(rows, roots, (r) => r.cpu);
+}
+
+/** Lê memória e CPU das árvores de processo. Falha silenciosa: métrica é acessório. */
+export async function readProcessStats(
+  roots: number[]
+): Promise<{ memory: Record<number, number>; cpu: Record<number, number> }> {
+  if (roots.length === 0) return { memory: {}, cpu: {} };
   try {
-    const { stdout } = await execFileAsync("ps", ["-Ao", "pid=,ppid=,rss="], { timeout: 4000, maxBuffer: 4 * 1024 * 1024 });
-    return memoryByRoot(parsePsOutput(stdout), roots);
+    const { stdout } = await execFileAsync("ps", ["-Ao", "pid=,ppid=,rss=,%cpu="], { timeout: 4000, maxBuffer: 4 * 1024 * 1024 });
+    const rows = parsePsOutput(stdout);
+    return { memory: memoryByRoot(rows, roots), cpu: cpuByRoot(rows, roots) };
   } catch {
-    return {};
+    return { memory: {}, cpu: {} };
   }
 }

@@ -465,7 +465,7 @@ describe("session_metrics: memória por sessão", () => {
   ];
 
   it("anexa a memória da árvore de processos de cada sessão", async () => {
-    const readMemory = vi.fn(async () => ({ 100: 50 * 1024 * 1024, 200: 8 * 1024 * 1024 }));
+    const readMemory = vi.fn(async () => ({ memory: { 100: 50 * 1024 * 1024, 200: 8 * 1024 * 1024 }, cpu: { 100: 42, 200: 0 } }));
     const pty = { allStats: vi.fn(() => stats), stats: vi.fn() };
     h = createHandlers({ store: new Store(dir), pty: pty as any, userDataDir: dir, openPath, readMemory });
 
@@ -473,15 +473,17 @@ describe("session_metrics: memória por sessão", () => {
     expect(readMemory).toHaveBeenCalledWith([100, 200]);
     expect(res[0].memory_bytes).toBe(50 * 1024 * 1024);
     expect(res[1].memory_bytes).toBe(8 * 1024 * 1024);
+    expect(res[0].cpu_percent).toBe(42);
   });
 
   it("sessão sem leitura de memória vem com o campo nulo, sem quebrar", async () => {
-    const readMemory = vi.fn(async () => ({}));
+    const readMemory = vi.fn(async () => ({ memory: {}, cpu: {} }));
     const pty = { allStats: vi.fn(() => stats), stats: vi.fn() };
     h = createHandlers({ store: new Store(dir), pty: pty as any, userDataDir: dir, openPath, readMemory });
 
     const res: any = await call("session_metrics");
     expect(res[0].memory_bytes).toBeNull();
+    expect(res[0].cpu_percent).toBeNull();
   });
 });
 
@@ -498,13 +500,13 @@ describe("session_metrics", () => {
   it("sem sessionId devolve as métricas de todas as sessões vivas", async () => {
     const pty = ptyMock();
     h = createHandlers({ store: new Store(dir), pty: pty as any, userDataDir: dir, openPath });
-    expect(await call("session_metrics")).toEqual(stats.map((s) => ({ ...s, memory_bytes: null })));
+    expect(await call("session_metrics")).toEqual(stats.map((s) => ({ ...s, memory_bytes: null, cpu_percent: null })));
   });
 
   it("com sessionId devolve só a sessão pedida", async () => {
     const pty = ptyMock();
     h = createHandlers({ store: new Store(dir), pty: pty as any, userDataDir: dir, openPath });
-    expect(await call("session_metrics", { sessionId: "s2" })).toEqual([{ ...stats[1], memory_bytes: null }]);
+    expect(await call("session_metrics", { sessionId: "s2" })).toEqual([{ ...stats[1], memory_bytes: null, cpu_percent: null }]);
   });
 
   it("sessão inexistente devolve lista vazia", async () => {

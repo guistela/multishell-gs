@@ -98,6 +98,8 @@ export interface SessionMetrics {
   started_at: string;
   /** RSS do shell mais toda a árvore de filhos. null quando não deu para medir. */
   memory_bytes: number | null;
+  /** CPU somada da árvore. Mostra agente processando mesmo em silêncio. */
+  cpu_percent: number | null;
 }
 
 export interface SnapshotMeta {

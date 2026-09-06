@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { memoryByRoot, parsePsOutput } from "../process-memory";
+import { cpuByRoot, memoryByRoot, parsePsOutput } from "../process-memory";
 
-/** Saída típica do `ps -Ao pid=,ppid=,rss=`: pid, ppid e RSS em KB. */
+/** Saída do `ps -Ao pid=,ppid=,rss=,%cpu=`: pid, ppid, RSS em KB e CPU em %. */
 const PS = `
-  100     1  10240
-  200   100   5120
-  300   200   2048
-  400     1  99999
+  100     1  10240   0.5
+  200   100   5120  12.5
+  300   200   2048   0.0
+  400     1  99999  90.0
 `;
 
 describe("parsePsOutput", () => {
   it("lê pid, ppid e rss em bytes", () => {
     const rows = parsePsOutput(PS);
     expect(rows).toHaveLength(4);
-    expect(rows[0]).toEqual({ pid: 100, ppid: 1, rss: 10240 * 1024 });
+    expect(rows[0]).toEqual({ pid: 100, ppid: 1, rss: 10240 * 1024, cpu: 0.5 });
   });
 
   it("ignora linhas malformadas sem quebrar", () => {
-    expect(parsePsOutput("lixo\n\n  1 2 3\n")).toEqual([{ pid: 1, ppid: 2, rss: 3 * 1024 }]);
+    expect(parsePsOutput("lixo\n\n  1 2 3 4\n")).toEqual([{ pid: 1, ppid: 2, rss: 3 * 1024, cpu: 4 }]);
   });
 });
 
@@ -41,9 +41,27 @@ describe("memoryByRoot", () => {
 
   it("não entra em laço com ciclo de ppid", () => {
     const ciclicos = [
-      { pid: 1, ppid: 2, rss: 1024 },
-      { pid: 2, ppid: 1, rss: 1024 },
+      { pid: 1, ppid: 2, rss: 1024, cpu: 0 },
+      { pid: 2, ppid: 1, rss: 1024, cpu: 0 },
     ];
     expect(memoryByRoot(ciclicos, [1])).toEqual({ 1: 2048 });
+  });
+});
+
+describe("cpuByRoot", () => {
+  const rows = parsePsOutput(PS);
+
+  it("soma o uso de CPU da árvore inteira", () => {
+    // 100 (0.5) + 200 (12.5) + 300 (0.0)
+    expect(cpuByRoot(rows, [100])[100]).toBeCloseTo(13);
+  });
+
+  it("separa as árvores", () => {
+    const r = cpuByRoot(rows, [100, 400]);
+    expect(r[400]).toBeCloseTo(90);
+  });
+
+  it("pid morto fica de fora", () => {
+    expect(cpuByRoot(rows, [999])).toEqual({});
   });
 });

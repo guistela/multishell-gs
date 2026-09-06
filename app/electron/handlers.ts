@@ -13,7 +13,7 @@ import { migrateFromSwift } from "./migration";
 import type { WindowManager } from "./windows";
 import { SpaceSnapshotManager, assertWorkDir, collectGitChangedFiles } from "./snapshot";
 import { WriteGuard } from "./write-guard";
-import { readProcessMemory } from "./process-memory";
+import { readProcessStats } from "./process-memory";
 import { listAuthSessions } from "./auth-sessions";
 import { syncSpaceMcpConfig, type McpServerConfig } from "./mcp";
 
@@ -28,8 +28,8 @@ export interface HandlerDeps {
   userDataDir: string;
   /** Consulta das CLIs autenticadas. Injetável para teste. */
   listAuth?: typeof listAuthSessions;
-  /** Memória das árvores de processo. Injetável para teste. */
-  readMemory?: (roots: number[]) => Promise<Record<number, number>>;
+  /** Memória e CPU das árvores de processo. Injetável para teste. */
+  readMemory?: (roots: number[]) => Promise<{ memory: Record<number, number>; cpu: Record<number, number> }>;
   /** shell.openPath. Injetável para teste. */
   openPath: (path: string) => Promise<string>;
   /** Janelas (fase 8). Sem ele, `session_detach`/`session_reattach` falham e `window_role` é sempre main. */
@@ -269,8 +269,12 @@ export function createHandlers(deps: HandlerDeps): Handlers {
         ? pty.allStats()
         : ((s) => (s ? [s] : []))(pty.stats(str(sessionId, "session_id")));
       // Uma leitura de `ps` cobre todas as sessões de uma vez.
-      const memory = await (deps.readMemory ?? readProcessMemory)(base.map((s) => s.pid));
-      return base.map((s) => ({ ...s, memory_bytes: memory[s.pid] ?? null }));
+      const stats = await (deps.readMemory ?? readProcessStats)(base.map((s) => s.pid));
+      return base.map((s) => ({
+        ...s,
+        memory_bytes: stats.memory[s.pid] ?? null,
+        cpu_percent: stats.cpu[s.pid] ?? null,
+      }));
     },
 
     session_drag_preview: ({ sessionId }, ctx) => {
