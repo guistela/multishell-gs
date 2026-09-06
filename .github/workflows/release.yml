@@ -67,10 +67,10 @@ jobs:
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
 
-      - name: GitHub Release (draft)
+      - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: false
           prerelease: false
           name: Multishell ${{ github.ref_name }}
           body: Veja os commits desde a tag anterior para detalhes.

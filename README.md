@@ -17,6 +17,10 @@
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License" />
 </p>
 
+<p align="center">
+  <img src="docs/assets/multishell-ui-preview.svg" alt="Multishell Interface Preview - Multi-terminal IA Workspace" width="100%" />
+</p>
+
 ---
 
 ## 🎯 Por que o Multishell?
@@ -36,26 +40,26 @@ O **Multishell** resolve isso criando **Espaços (Spaces)** isolados, onde cada 
 Cada terminal roda em um processo pseudoterminal (`node-pty`) que herda um ambiente estritamente higienizado e encapsulado.
 
 ```mermaid
-graph TD
-    User([Usuário]) --> UI[Interface Multishell / React 19]
+flowchart TD
+    User["Usuário"] --> UI["Interface Multishell (React 19)"]
 
-    subgraph AppContainer [Electron App Architecture]
-        UI -->|IPC seguro| MainProcess[Electron Main Process]
-        MainProcess --> StoreManager[Config Store JSON]
-        MainProcess --> KeyringAPI[@napi-rs/keyring]
+    subgraph AppContainer ["Electron App Architecture"]
+        UI -->|"IPC Seguro"| MainProcess["Electron Main Process"]
+        MainProcess --> StoreManager["Config Store (JSON)"]
+        MainProcess --> KeyringAPI["Keyring Adapter (@napi-rs/keyring)"]
     end
 
-    subgraph SecurityShield [Camada de Segurança do Sistema]
-        KeyringAPI -->|Criptografia de Hardware| OSKeyring[(macOS Keychain / Windows Credential Manager)]
+    subgraph SecurityShield ["Segurança do SO"]
+        KeyringAPI -->|"Criptografia de Hardware"| OSKeyring[("macOS Keychain / Windows Credential Manager")]
     end
 
-    subgraph SpacesTopology [Isolamento por Espaços de Credenciais]
-        MainProcess -->|Spawn Plan| SpaceA["📁 Espaço: Pessoal (~/.multishell/profiles/personal)"]
-        MainProcess -->|Spawn Plan| SpaceB["📁 Espaço: Trabalho (~/.multishell/profiles/work)"]
-        MainProcess -->|Spawn Plan| SpaceC["📁 Espaço: Cliente X (~/.multishell/profiles/cliente-x)"]
+    subgraph SpacesTopology ["Isolamento por Espaços"]
+        MainProcess -->|"Spawn Plan"| SpaceA["📁 Espaço: Pessoal (~/.multishell/profiles/personal)"]
+        MainProcess -->|"Spawn Plan"| SpaceB["📁 Espaço: Trabalho (~/.multishell/profiles/work)"]
+        MainProcess -->|"Spawn Plan"| SpaceC["📁 Espaço: Cliente X (~/.multishell/profiles/cliente-x)"]
     end
 
-    subgraph TerminalsExec [Terminais PTY Isolados]
+    subgraph TerminalsExec ["Terminais PTY Isolados"]
         SpaceA --> PTY1["Terminal 1: Claude Code (HOME isolado)"]
         SpaceA --> PTY2["Terminal 2: zsh / bash padrão"]
         SpaceB --> PTY3["Terminal 3: Codex CLI (Tokens da Empresa)"]
