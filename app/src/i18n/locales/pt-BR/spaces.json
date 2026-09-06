@@ -1,0 +1,38 @@
+{
+  "title": "Espaços",
+  "empty": "Nenhum espaço. Adicione um.",
+  "add": "Adicionar",
+  "delete": "Excluir",
+  "confirmDelete": "Excluir o espaço \"{{name}}\"? A pasta não é apagada.",
+  "openFolder": "Abrir pasta",
+  "save": "Salvar",
+  "saved": "Salvo",
+  "cancel": "Cancelar",
+  "fields": {
+    "name": "Nome",
+    "color": "Cor",
+    "directory": "Pasta",
+    "directoryGenerated": "gerada a partir do nome",
+    "env": "Variáveis",
+    "secret": "Segredo",
+    "secretPlaceholder": "••••",
+    "basePath": "Pasta base",
+    "basePathPlaceholder": "Selecione a pasta do projeto",
+    "basePathHint": "Novos terminais começam nesta pasta. As credenciais continuam isoladas no espaço.",
+    "browse": "Escolher pasta…"
+  },
+  "security": {
+    "title": "Política de segurança",
+    "warning": "Este espaço vê credenciais do usuário.",
+    "load_user_shell_profile": "Carregar perfil do shell do usuário",
+    "load_user_shell_profile_hint": "Executa o ~/.zshrc do usuário dentro do espaço.",
+    "share_keychain": "Compartilhar Keychain",
+    "share_keychain_hint": "O espaço lê as senhas salvas do usuário.",
+    "share_ssh": "Compartilhar SSH",
+    "share_ssh_hint": "O espaço usa as chaves de ~/.ssh do usuário.",
+    "share_git_config": "Compartilhar config do Git",
+    "share_git_config_hint": "O espaço usa o ~/.gitconfig do usuário.",
+    "inherit_process_env": "Herdar env do app",
+    "inherit_process_env_hint": "As variáveis do processo do app passam para o shell."
+  }
+}

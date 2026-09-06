@@ -1,0 +1,38 @@
+{
+  "title": "Spaces",
+  "empty": "No spaces. Add one.",
+  "add": "Add",
+  "delete": "Delete",
+  "confirmDelete": "Delete space \"{{name}}\"? The folder is not removed.",
+  "openFolder": "Open folder",
+  "save": "Save",
+  "saved": "Saved",
+  "cancel": "Cancel",
+  "fields": {
+    "name": "Name",
+    "color": "Color",
+    "directory": "Folder",
+    "directoryGenerated": "generated from the name",
+    "env": "Variables",
+    "secret": "Secret",
+    "secretPlaceholder": "••••",
+    "basePath": "Base folder",
+    "basePathPlaceholder": "Select the project folder",
+    "basePathHint": "New terminals start in this folder. Credentials remain isolated in the space.",
+    "browse": "Choose folder…"
+  },
+  "security": {
+    "title": "Security policy",
+    "warning": "This space can see the user's credentials.",
+    "load_user_shell_profile": "Load user shell profile",
+    "load_user_shell_profile_hint": "Runs the user's ~/.zshrc inside the space.",
+    "share_keychain": "Share Keychain",
+    "share_keychain_hint": "The space reads the user's saved passwords.",
+    "share_ssh": "Share SSH",
+    "share_ssh_hint": "The space uses the user's ~/.ssh keys.",
+    "share_git_config": "Share Git config",
+    "share_git_config_hint": "The space uses the user's ~/.gitconfig.",
+    "inherit_process_env": "Inherit app env",
+    "inherit_process_env_hint": "The app process variables pass to the shell."
+  }
+}

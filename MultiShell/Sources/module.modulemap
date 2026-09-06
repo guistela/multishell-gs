@@ -1,0 +1,4 @@
+module PTYHelper {
+    header "PTYHelper.h"
+    export *
+}

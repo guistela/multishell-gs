@@ -1,0 +1,20 @@
+{
+  "title": "Configurações",
+  "close": "Fechar",
+  "tabs": { "providers": "Providers", "spaces": "Espaços", "terminal": "Terminal" },
+  "keyValue": { "key": "Chave", "value": "Valor", "add": "Adicionar", "remove": "Remover" },
+  "terminal": {
+    "shell": "Shell",
+    "shellHint": "Vazio = padrão do sistema",
+    "defaultCwd": "Pasta inicial",
+    "fontFamily": "Fonte",
+    "fontSize": "Tamanho",
+    "fontSizeError": "Use um número entre {{min}} e {{max}}.",
+    "theme": "Tema",
+    "themeDark": "Escuro",
+    "themeLight": "Claro",
+    "language": "Idioma",
+    "save": "Salvar",
+    "saved": "Salvo"
+  }
+}

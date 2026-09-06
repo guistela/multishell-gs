@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  dist:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (dmg x64 + arm64)
+            os: macos-latest
+            artifacts: app/release/*.dmg
+          - name: Windows (nsis)
+            os: windows-latest
+            artifacts: app/release/*.exe
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Dist (electron-vite build + electron-builder)
+        run: pnpm dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Sem assinatura por enquanto. Não procura certificado no Keychain do runner.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Quando houver certificado, adicione os secrets e remova a linha acima:
+          #   CSC_LINK: ${{ secrets.CSC_LINK }}                 # .p12 em base64 (mac Developer ID ou win Authenticode)
+          #   CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Notarização mac (exige `notarize: true` no electron-builder.yml):
+          #   APPLE_ID: ${{ secrets.APPLE_ID }}
+          #   APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          #   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload artifacts (debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: multishell-${{ runner.os }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+
+      - name: GitHub Release (draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: false
+          name: Multishell ${{ github.ref_name }}
+          body: Veja os commits desde a tag anterior para detalhes.
+          files: ${{ matrix.artifacts }}

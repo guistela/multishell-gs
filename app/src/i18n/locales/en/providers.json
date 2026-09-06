@@ -1,0 +1,34 @@
+{
+  "title": "Providers",
+  "empty": "No providers. Add one or restore the presets.",
+  "add": "Add",
+  "restorePresets": "Restore presets",
+  "delete": "Delete",
+  "confirmDelete": "Delete provider \"{{name}}\"?",
+  "save": "Save",
+  "saved": "Saved",
+  "cancel": "Cancel",
+  "fields": {
+    "name": "Harness name",
+    "executable": "Executable path",
+    "args": "Args",
+    "bypassArgs": "Bypass args",
+    "configEnvKey": "Config env variable (optional)",
+    "configEnvKeyHint": "E.g. CLAUDE_CONFIG_DIR. The app points it to the space folder.",
+    "extraEnv": "Extra env",
+    "icon": "Icon",
+    "resumeArgs": "Resume args",
+    "resumeArgsHint": "Args that resume the last conversation when the app reopens (e.g. --continue). Empty = start fresh."
+  },
+  "list": {
+    "add": "Add item",
+    "remove": "Remove",
+    "placeholder": "one argument per line"
+  },
+  "preview": {
+    "title": "Command preview",
+    "bypassOff": "Bypass off",
+    "bypassOn": "Bypass on",
+    "resume": "Resume"
+  }
+}
