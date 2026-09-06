@@ -1,0 +1,15 @@
+{
+  "app": { "title": "Multishell" },
+  "language": { "label": "Idioma", "pt-BR": "Português", "en": "English" },
+  "session": {
+    "new": "Nova sessão",
+    "close": "Fechar sessão",
+    "bypass": "Bypass de políticas",
+    "bypassOn": "Bypass ligado: o harness roda sem confirmações",
+    "bypassOff": "Bypass desligado: modo seguro",
+    "exited": "Shell encerrado (código {{code}})"
+  },
+  "provider": { "title": "Providers", "none": "Nenhum", "add": "Adicionar provider", "start": "Iniciar harness" },
+  "space": { "title": "Espaços", "add": "Adicionar espaço" },
+  "settings": { "title": "Configurações", "terminal": "Terminal", "bookmarks": "Favoritos" }
+}

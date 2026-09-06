@@ -1,0 +1,7 @@
+# Ignore test files from SAST blocking rules
+**/__tests__/**
+**/*.test.ts
+**/*.test.tsx
+
+# Ignore GitHub Actions workflows and configs from mutable tag rule
+.github/**

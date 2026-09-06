@@ -1,0 +1,126 @@
+{
+  "sidebar": {
+    "newSpace": "Create space",
+    "newInSpace": "New session in {{space}}",
+    "rename": "Rename",
+    "bypassOn": "Bypass on",
+    "harnessRunning": "Harness running",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "spaces": "Spaces",
+    "collapseSpace": "Collapse space {{space}}",
+    "expandSpace": "Expand space {{space}}",
+    "searchPlaceholder": "Search terminals and spaces...",
+    "clearSearch": "Clear search",
+    "noResults": "No results found",
+    "availableHarnesses": "AVAILABLE HARNESSES",
+    "agentWorking": "Agent working",
+    "agentIdle": "Agent idle, waiting for you"
+  },
+  "bar": {
+    "space": "Space",
+    "provider": "Provider",
+    "noProvider": "No provider",
+    "bypass": "Bypass",
+    "bypassNextStart": "Applies on next start",
+    "start": "Start harness",
+    "close": "Close session"
+  },
+  "exit": {
+    "banner": "Shell exited (code {{code}})",
+    "restart": "Restart"
+  },
+  "migration": {
+    "toast": "Imported from legacy Multishell: {{spaces}} spaces, {{sessions}} sessions",
+    "dismiss": "Dismiss"
+  },
+  "shortcuts": {
+    "new": "New session (⌘T)",
+    "settings": "Settings (⌘,)",
+    "search": "Search terminals and spaces (⌘P)"
+  },
+  "detached": {
+    "detach": "Detach",
+    "reattach": "Return to space",
+    "detachedHere": "This terminal is in another window",
+    "bringBack": "Bring back",
+    "sessionMissing": "This session no longer exists"
+  },
+  "drag": {
+    "handle": "Drag {{title}}",
+    "into": "Drag outside this window and drop over Multishell to return to its space",
+    "out": "Drag and drop outside Multishell to detach",
+    "cancel": "Esc cancels",
+    "failed": "Could not move the terminal.",
+    "releaseOutside": "Release to detach terminal",
+    "releaseInside": "Release to return to its space",
+    "moveOutside": "Drag outside this window",
+    "moveInside": "Drag to the main window"
+  },
+  "layout": {
+    "workspace": "Space terminals",
+    "label": "Layout",
+    "single": "Single",
+    "list": "List",
+    "grid": "Grid",
+    "vertical": "Vertical",
+    "horizontal": "Horizontal",
+    "new": "+ Terminal",
+    "count_one": "{{count}} terminal",
+    "count_other": "{{count}} terminals",
+    "shell": "Shell",
+    "empty": "No terminals in this space yet. Create one with + Terminal.",
+    "focus": "Expand {{title}}",
+    "restore": "Exit full screen (restore grid)",
+    "close": "Close {{title}}",
+    "select": "Select {{title}}"
+  },
+  "home": {
+    "caption": "A place for your terminals",
+    "emptyTitle": "Ready when you are",
+    "emptyDescription": "Create a terminal in this space to get started. Your settings and credentials are already organized here.",
+    "createTerminal": "Create terminal",
+    "noSpacesTitle": "Your next project starts here",
+    "noSpacesDescription": "Set up a space to organize your terminals and accounts.",
+    "configureSpaces": "Set up spaces",
+    "shortcutHint": "to open a terminal"
+  },
+  "menu": {
+    "newSession": "New session",
+    "newInSpace": "New terminal in this space",
+    "rename": "Rename",
+    "duplicate": "Duplicate terminal",
+    "restart": "Restart terminal",
+    "clear": "Clear screen",
+    "copy": "Copy selection",
+    "paste": "Paste",
+    "selectAll": "Select all",
+    "copyCwd": "Copy working directory",
+    "openFolder": "Open folder in file manager",
+    "openSpaceFolder": "Open space folder",
+    "spaceSettings": "Space settings...",
+    "terminalSettings": "Terminal settings...",
+    "toggleBypass": "Toggle permissions bypass",
+    "startHarness": "Start harness",
+    "moveToSpace": "Move to another space",
+    "detach": "Detach into separate window",
+    "reattach": "Return to space",
+    "close": "Close terminal",
+    "closeAllInSpace": "Close all terminals in space",
+    "maximize": "Maximize terminal",
+    "restoreLayout": "Restore grid layout",
+    "layout": "Layout",
+    "theme": "Theme for this terminal",
+    "themeDefault": "App default",
+    "kanbanTask": "New Kanban task from selection"
+  },
+  "search": {
+    "placeholder": "Search terminals and spaces...",
+    "buttonLabel": "Search...",
+    "spaces": "Spaces",
+    "terminals": "Terminals",
+    "noResults": "No terminals or spaces found for \"{{query}}\"",
+    "hint": "Navigate with ↑ ↓ and press Enter to open",
+    "empty": "Type to search by terminal name, directory, space or provider"
+  }
+}

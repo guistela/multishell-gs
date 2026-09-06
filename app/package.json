@@ -1,0 +1,58 @@
+{
+  "name": "multishell",
+  "private": true,
+  "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guistela/multishell-gs.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder",
+    "test": "vitest run && vitest run --config vitest.electron.config.ts",
+    "test:renderer": "vitest run",
+    "test:electron": "vitest run --config vitest.electron.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "postinstall": "node -e \"const fs=require('fs'),p='node_modules/node-pty/prebuilds';if(fs.existsSync(p))for(const d of fs.readdirSync(p)){const h=p+'/'+d+'/spawn-helper';if(fs.existsSync(h))fs.chmodSync(h,0o755)}\""
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "^2.0.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "bplist-parser": "^0.3.2",
+    "i18next": "^26.4.2",
+    "node-pty": "^1.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-i18next": "^17.0.13",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.4.1",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^6.0.2",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "jsdom": "^30.0.1",
+    "typescript": "~7.0.2",
+    "vite": "^8.0.16",
+    "vitest": "^5.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "node-pty",
+      "@napi-rs/keyring",
+      "esbuild"
+    ]
+  },
+  "productName": "Multishell",
+  "main": "out/main/index.mjs"
+}

@@ -1,0 +1,34 @@
+{
+  "title": "Providers",
+  "empty": "Nenhum provider. Adicione um ou restaure os presets.",
+  "add": "Adicionar",
+  "restorePresets": "Restaurar presets",
+  "delete": "Excluir",
+  "confirmDelete": "Excluir o provider \"{{name}}\"?",
+  "save": "Salvar",
+  "saved": "Salvo",
+  "cancel": "Cancelar",
+  "fields": {
+    "name": "Nome do harness",
+    "executable": "Caminho do executável",
+    "args": "Args",
+    "bypassArgs": "Args de bypass",
+    "configEnvKey": "Variável de config (opcional)",
+    "configEnvKeyHint": "Ex.: CLAUDE_CONFIG_DIR. O app aponta para a pasta do espaço.",
+    "extraEnv": "Env extra",
+    "icon": "Ícone",
+    "resumeArgs": "Args de resume",
+    "resumeArgsHint": "Args que retomam a última conversa ao reabrir o app (ex.: --continue). Vazio = inicia sem retomar."
+  },
+  "list": {
+    "add": "Adicionar item",
+    "remove": "Remover",
+    "placeholder": "um argumento por linha"
+  },
+  "preview": {
+    "title": "Prévia do comando",
+    "bypassOff": "Bypass desligado",
+    "bypassOn": "Bypass ligado",
+    "resume": "Resume"
+  }
+}

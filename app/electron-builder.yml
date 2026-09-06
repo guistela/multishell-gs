@@ -1,0 +1,70 @@
+# electron-builder — https://www.electron.build/configuration
+# Roda com `pnpm dist` (electron-vite build + electron-builder).
+
+appId: com.multishell.app
+productName: Multishell
+copyright: Copyright © 2026 Multishell Contributors
+
+publish:
+  provider: github
+  owner: guistela
+  repo: multishell-gs
+
+directories:
+  output: release
+  buildResources: build # icon.icns / icon.ico / icon.png
+
+files:
+  - out/**
+
+# Módulos nativos ficam fora do asar (node-pty precisa do binário no disco).
+asarUnpack:
+  - "**/node_modules/node-pty/**"
+  - "**/node_modules/@napi-rs/keyring*/**"
+
+npmRebuild: true
+
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  # Sem assinatura por enquanto. `identity: null` impede o electron-builder
+  # de procurar certificado no Keychain e falhar no CI.
+  identity: null
+  hardenedRuntime: false
+  # Quando houver Developer ID:
+  #   1. remova `identity: null` e mude `hardenedRuntime: true`
+  #   2. crie `build/entitlements.mac.plist` e aponte em `entitlements` / `entitlementsInherit`
+  #   3. exporte no CI: CSC_LINK (p12 em base64), CSC_KEY_PASSWORD
+  #   4. notarização: `notarize: true` + APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
+  # Assinatura Windows (Authenticode) quando houver certificado:
+  #   CSC_LINK + CSC_KEY_PASSWORD no CI, ou `signtoolOptions` aqui.
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  installerLanguages: [pt_BR, en_US]
+  multiLanguageInstaller: true
+  createDesktopShortcut: true
+  shortcutName: Multishell
+
+# linux: omitido de propósito (só Mac e Windows).

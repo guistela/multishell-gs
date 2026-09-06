@@ -1,0 +1,35 @@
+{
+  "title": "Settings",
+  "close": "Close",
+  "tabs": { "providers": "Providers", "spaces": "Spaces", "terminal": "Terminal", "mcp": "MCP" },
+  "keyValue": { "key": "Key", "value": "Value", "add": "Add", "remove": "Remove" },
+  "terminal": {
+    "shell": "Shell",
+    "shellHint": "Empty = system default",
+    "defaultCwd": "Start folder",
+    "fontFamily": "Font",
+    "fontSize": "Size",
+    "fontSizeError": "Use a number between {{min}} and {{max}}.",
+    "theme": "Theme",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "language": "Language",
+    "save": "Save",
+    "saved": "Saved"
+  },
+  "mcp": {
+    "space": "Space",
+    "help": "Save writes the .mcp.json file in the space project folder. Harnesses that read MCP at project scope use this file. Not every harness supports MCP.",
+    "empty": "No MCP server in this space.",
+    "noSpace": "Create a space to configure MCP servers.",
+    "name": "Name",
+    "command": "Command",
+    "args": "Arguments (one per line)",
+    "env": "Environment variables (optional)",
+    "enabled": "Enabled",
+    "add": "Add server",
+    "remove": "Remove server {{name}}",
+    "save": "Save",
+    "saved": "Written to {{path}} — {{count}} active server(s)"
+  }
+}

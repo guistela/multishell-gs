@@ -1,0 +1,35 @@
+{
+  "title": "Configurações",
+  "close": "Fechar",
+  "tabs": { "providers": "Providers", "spaces": "Espaços", "terminal": "Terminal", "mcp": "MCP" },
+  "keyValue": { "key": "Chave", "value": "Valor", "add": "Adicionar", "remove": "Remover" },
+  "terminal": {
+    "shell": "Shell",
+    "shellHint": "Vazio = padrão do sistema",
+    "defaultCwd": "Pasta inicial",
+    "fontFamily": "Fonte",
+    "fontSize": "Tamanho",
+    "fontSizeError": "Use um número entre {{min}} e {{max}}.",
+    "theme": "Tema",
+    "themeDark": "Escuro",
+    "themeLight": "Claro",
+    "language": "Idioma",
+    "save": "Salvar",
+    "saved": "Salvo"
+  },
+  "mcp": {
+    "space": "Espaço",
+    "help": "Salvar grava o arquivo .mcp.json na pasta do projeto do espaço. Os harnesses que leem MCP no escopo do projeto usam esse arquivo. Nem todo harness suporta MCP.",
+    "empty": "Nenhum servidor MCP neste espaço.",
+    "noSpace": "Crie um espaço para configurar servidores MCP.",
+    "name": "Nome",
+    "command": "Comando",
+    "args": "Argumentos (um por linha)",
+    "env": "Variáveis de ambiente (opcional)",
+    "enabled": "Habilitado",
+    "add": "Adicionar servidor",
+    "remove": "Remover servidor {{name}}",
+    "save": "Salvar",
+    "saved": "Gravado em {{path}} — {{count}} servidor(es) ativo(s)"
+  }
+}

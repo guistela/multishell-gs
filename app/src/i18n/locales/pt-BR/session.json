@@ -1,0 +1,126 @@
+{
+  "sidebar": {
+    "newSpace": "Criar espaço",
+    "newInSpace": "Nova sessão em {{space}}",
+    "rename": "Renomear",
+    "bypassOn": "Bypass ligado",
+    "harnessRunning": "Harness em execução",
+    "collapse": "Recolher barra lateral",
+    "expand": "Expandir barra lateral",
+    "spaces": "Espaços",
+    "collapseSpace": "Recolher espaço {{space}}",
+    "expandSpace": "Expandir espaço {{space}}",
+    "searchPlaceholder": "Buscar terminais e espaços...",
+    "clearSearch": "Limpar busca",
+    "noResults": "Nenhum resultado encontrado",
+    "availableHarnesses": "HARNESSES DISPONÍVEIS",
+    "agentWorking": "Agente trabalhando",
+    "agentIdle": "Agente parado, esperando você"
+  },
+  "bar": {
+    "space": "Espaço",
+    "provider": "Provider",
+    "noProvider": "Sem provider",
+    "bypass": "Bypass",
+    "bypassNextStart": "Aplica no próximo início",
+    "start": "Iniciar harness",
+    "close": "Fechar sessão"
+  },
+  "exit": {
+    "banner": "Shell encerrado (código {{code}})",
+    "restart": "Reiniciar"
+  },
+  "migration": {
+    "toast": "Importado do Multishell antigo: {{spaces}} espaços, {{sessions}} sessões",
+    "dismiss": "Fechar"
+  },
+  "shortcuts": {
+    "new": "Nova sessão (⌘T)",
+    "settings": "Configurações (⌘,)",
+    "search": "Buscar terminais e espaços (⌘P)"
+  },
+  "detached": {
+    "detach": "Destacar",
+    "reattach": "Devolver ao espaço",
+    "detachedHere": "Este terminal está em outra janela",
+    "bringBack": "Trazer de volta",
+    "sessionMissing": "Esta sessão não existe mais"
+  },
+  "drag": {
+    "handle": "Arrastar {{title}}",
+    "into": "Arraste para fora desta janela e solte sobre o Multishell para devolver ao espaço",
+    "out": "Arraste e solte fora do Multishell para destacar",
+    "cancel": "Esc cancela",
+    "failed": "Não foi possível mover o terminal.",
+    "releaseOutside": "Solte para destacar o terminal",
+    "releaseInside": "Solte para devolver ao espaço",
+    "moveOutside": "Arraste para fora desta janela",
+    "moveInside": "Arraste para a janela principal"
+  },
+  "layout": {
+    "workspace": "Terminais do espaço",
+    "label": "Visualização",
+    "single": "Individual",
+    "list": "Lista",
+    "grid": "Grade",
+    "vertical": "Vertical",
+    "horizontal": "Horizontal",
+    "new": "+ Terminal",
+    "count_one": "{{count}} terminal",
+    "count_other": "{{count}} terminais",
+    "shell": "Shell",
+    "empty": "Este espaço ainda não tem terminais. Crie um em + Terminal.",
+    "focus": "Expandir {{title}}",
+    "restore": "Minimizar tela cheia (voltar para grade)",
+    "close": "Fechar {{title}}",
+    "select": "Selecionar {{title}}"
+  },
+  "home": {
+    "caption": "Um lugar para seus terminais",
+    "emptyTitle": "Pronto quando você estiver",
+    "emptyDescription": "Crie um terminal neste espaço para começar. Suas configurações e credenciais já estão organizadas aqui.",
+    "createTerminal": "Criar terminal",
+    "noSpacesTitle": "Seu próximo projeto começa aqui",
+    "noSpacesDescription": "Configure um espaço para organizar seus terminais e suas contas.",
+    "configureSpaces": "Configurar espaços",
+    "shortcutHint": "para abrir um terminal"
+  },
+  "menu": {
+    "newSession": "Nova sessão",
+    "newInSpace": "Novo terminal neste espaço",
+    "rename": "Renomear",
+    "duplicate": "Duplicar terminal",
+    "restart": "Reiniciar terminal",
+    "clear": "Limpar tela",
+    "copy": "Copiar seleção",
+    "paste": "Colar",
+    "selectAll": "Selecionar tudo",
+    "copyCwd": "Copiar caminho da pasta",
+    "openFolder": "Abrir pasta no gerenciador de arquivos",
+    "openSpaceFolder": "Abrir pasta do espaço",
+    "spaceSettings": "Configurações do espaço...",
+    "terminalSettings": "Configurações do terminal...",
+    "toggleBypass": "Alternar bypass de permissões",
+    "startHarness": "Iniciar harness",
+    "moveToSpace": "Mover para outro espaço",
+    "detach": "Destacar em janela própria",
+    "reattach": "Devolver ao espaço",
+    "close": "Fechar terminal",
+    "closeAllInSpace": "Fechar todos os terminais do espaço",
+    "maximize": "Maximizar terminal",
+    "restoreLayout": "Restaurar layout em grade",
+    "layout": "Visualização",
+    "theme": "Tema deste terminal",
+    "themeDefault": "Padrão do app",
+    "kanbanTask": "Nova tarefa no Kanban com a seleção"
+  },
+  "search": {
+    "placeholder": "Buscar terminais e espaços...",
+    "buttonLabel": "Buscar...",
+    "spaces": "Espaços",
+    "terminals": "Terminais",
+    "noResults": "Nenhum terminal ou espaço encontrado para \"{{query}}\"",
+    "hint": "Navegue com ↑ ↓ e pressione Enter para abrir",
+    "empty": "Digite para pesquisar por nome do terminal, pasta, espaço ou provider"
+  }
+}

@@ -1,0 +1,72 @@
+# Build artifacts
+.build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+dist/
+
+# macOS
+.DS_Store
+*.app
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Secrets, Keys, Certificates & Credentials
+*.pem
+*.key
+*.p12
+*.cer
+*.crt
+*.pfx
+*.asc
+*.mobileprovision
+*.keystore
+id_rsa*
+id_ed25519*
+.env
+.env.*
+!.env.example
+.npmrc
+
+# Local tools, IDE and agent state
+.claude/
+.codex/
+.vscode/
+.idea/
+.gemini/
+.agent/
+.multishell/
+_Users_*
+
+# Runtime logs, temporary files and locks
+*.log
+*.lock
+TemporaryDirectory.*/
+*.tmp
+*.swp
+*~
+
+# Xcode
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+xcuserdata/
+
+# Swift Package Manager
+Package.resolved
+
+# User settings
+*.xcuserdata
+
+# Electron app (app/)
+app/node_modules/
+app/out/
+app/release/
+app/dist/
+!app/pnpm-lock.yaml
