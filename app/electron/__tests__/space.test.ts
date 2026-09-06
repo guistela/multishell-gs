@@ -417,3 +417,30 @@ describe("space base path", () => {
     expect(buildSpawnPlan(opts({ space: { ...spaceFechado(), base_path: "/projects" }, cwd: "/projects/subdir" })).cwd).toBe("/projects/subdir");
   });
 });
+
+describe("locale do espaço", () => {
+  it("define uma locale UTF-8 quando o espaço não herda o ambiente do host", () => {
+    const plan = buildSpawnPlan(opts({ processEnv: { PATH: "/usr/bin" } }));
+    expect(plan.env.LANG).toMatch(/UTF-8$/i);
+    expect(plan.env.LC_CTYPE).toMatch(/UTF-8$/i);
+  });
+
+  it("aproveita a locale do host quando ela já é UTF-8", () => {
+    const plan = buildSpawnPlan(opts({ processEnv: { PATH: "/usr/bin", LANG: "pt_BR.UTF-8" } }));
+    expect(plan.env.LANG).toBe("pt_BR.UTF-8");
+  });
+
+  it("troca locale não-UTF-8 do host por uma UTF-8", () => {
+    for (const ruim of ["C", "POSIX", "en_US.ISO8859-1", ""]) {
+      const plan = buildSpawnPlan(opts({ processEnv: { PATH: "/usr/bin", LANG: ruim } }));
+      expect(plan.env.LANG, ruim).toBe("en_US.UTF-8");
+    }
+  });
+
+  it("o que o usuário define no espaço tem a palavra final", () => {
+    const s = spaceFechado();
+    s.custom_env = [{ key: "LANG", value: "ja_JP.UTF-8", is_secret: false }];
+    const plan = buildSpawnPlan(opts({ space: s }));
+    expect(plan.env.LANG).toBe("ja_JP.UTF-8");
+  });
+});

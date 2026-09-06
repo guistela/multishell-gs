@@ -210,6 +210,15 @@ export interface BuildOpts {
   defaultCwd?: string | null;
 }
 
+/** Locale do host quando ela é UTF-8; senão uma UTF-8 padrão. */
+export function utf8Locale(env: NodeJS.ProcessEnv): string {
+  for (const key of ["LC_ALL", "LC_CTYPE", "LANG"]) {
+    const value = env[key];
+    if (typeof value === "string" && /utf-?8$/i.test(value.trim())) return value.trim();
+  }
+  return "en_US.UTF-8";
+}
+
 function processPath(env: NodeJS.ProcessEnv): string {
   if (typeof env.PATH === "string") return env.PATH;
   const key = Object.keys(env).find((k) => k.toUpperCase() === "PATH");
@@ -244,6 +253,10 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
   let shellArgs: string[] = [];
 
   env.HOME = root;
+  // Sem locale UTF-8 o shell cai em "C" e acentos viram lixo ao copiar do terminal.
+  const locale = utf8Locale(o.processEnv);
+  env.LANG = locale;
+  env.LC_CTYPE = locale;
   env.MULTISHELL_SPACE = o.space.directory_name;
   env.MULTISHELL_SPACE_NAME = o.space.name;
   env.MULTISHELL_SPACE_HOME = root;

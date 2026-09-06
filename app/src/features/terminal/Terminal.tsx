@@ -9,6 +9,7 @@ import { useAppStore } from "../../store";
 import { themeFor } from "./themes";
 import { addTaskFromTerminal } from "../agents/kanbanStore";
 import { forgetSession, markOutput } from "./agentActivity";
+import { cleanSelection } from "./selection";
 
 import type { Session } from "../../types";
 import { pty } from "./pty";
@@ -203,7 +204,7 @@ export function Terminal({ session, onOpenSettings }: Props) {
       shortcut: `${modKey}C`,
       disabled: !selection,
       onClick: () => {
-        if (selection) void navigator.clipboard.writeText(selection);
+        if (selection) void navigator.clipboard.writeText(cleanSelection(selection));
       },
     },
     {
