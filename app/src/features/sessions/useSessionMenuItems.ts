@@ -84,7 +84,7 @@ export function useSessionMenuItems({ session, onRename, onOpenSettings }: Props
         updateSession(session.id, { bypass: !session.bypass });
       },
     },
-    ...(provider
+    ...(provider && !session.harness_running
       ? [
           {
             id: "start-harness",
@@ -157,7 +157,7 @@ export function useSessionMenuItems({ session, onRename, onOpenSettings }: Props
       ? [
           {
             id: "move-to-space",
-            label: t("session:menu.moveToSpace"),
+            label: useAppStore.getState().settings.language === "en" ? "Restart in another space" : "Reiniciar em outro espaço",
             icon: "🏷️",
             children: otherSpaces.map((sp) => ({
               id: `move-to-${sp.id}`,
@@ -181,6 +181,7 @@ export function useSessionMenuItems({ session, onRename, onOpenSettings }: Props
         ]
       : []),
     { separator: true },
+    { id: "reopen", label: useAppStore.getState().settings.language === "en" ? "Reopen last closed terminal" : "Reabrir último terminal fechado", disabled: useAppStore.getState().recentlyClosed.length === 0, onClick: () => useAppStore.getState().reopenSession() },
     {
       id: "close",
       label: t("session:menu.close"),

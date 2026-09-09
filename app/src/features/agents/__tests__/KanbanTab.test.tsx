@@ -131,3 +131,16 @@ describe("Kanban local do espaço", () => {
     expect(boards[spaceB.id]).toBeUndefined();
   });
 });
+
+
+it("keeps task status on write failure and allows retry", async () => {
+  boards[spaceA.id] = { tasks: [{ ...tarefa, assignee_session_id: agente.id }] };
+  writeMock.mockRejectedValueOnce(new Error("PTY closed"));
+  render(<KanbanTab />);
+  await screen.findByText("Revisar guardrail");
+  fireEvent.click(screen.getByRole("button", { name: /Enviar TASK-1/i }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível enviar");
+  expect(boards[spaceA.id].tasks[0].status).toBe("todo");
+  fireEvent.click(screen.getByRole("button", { name: /Enviar TASK-1/i }));
+  await waitFor(() => expect(boards[spaceA.id].tasks[0].status).toBe("in_progress"));
+});

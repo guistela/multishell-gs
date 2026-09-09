@@ -1,3 +1,4 @@
+import { NewAgentDialog } from "./NewAgentDialog";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
@@ -28,7 +29,9 @@ export function Workspace({
 }: {
   onOpenSettings?: (tab?: "providers" | "spaces" | "terminal") => void;
 } = {}) {
+  const [newAgentOpen, setNewAgentOpen] = useState(false);
   const { t } = useTranslation("session");
+  const recentlyClosed = useAppStore((s) => s.recentlyClosed);
   const sessions = useAppStore((s) => s.sessions);
   const spaces = useAppStore((s) => s.spaces);
   const providers = useAppStore((s) => s.providers);
@@ -219,6 +222,7 @@ export function Workspace({
           </div>
 
           <div className="terminal-tabs-actions">
+            {recentlyClosed.length > 0 && <button title="Reabre a configuração do terminal, sem restaurar processos anteriores" onClick={() => useAppStore.getState().reopenSession()}>Reabrir terminal</button>}
             <button
               type="button"
               className="terminal-tab-add-btn"
@@ -235,18 +239,7 @@ export function Workspace({
               aria-label="+ Agente"
               title="Novo terminal já com um agente rodando"
               disabled={!spaceId || providers.length === 0}
-              onClick={() => {
-                const p = providers[0];
-                if (spaceId && p) {
-                  useAppStore.getState().addSession({
-                    space_id: spaceId,
-                    title: p.name,
-                    provider_id: p.id,
-                    bypass: false,
-                    auto_start_harness: true,
-                  });
-                }
-              }}
+              onClick={() => setNewAgentOpen(true)}
             >
               + Agente
             </button>
@@ -330,6 +323,7 @@ export function Workspace({
         </div>
       </div>
 
+      {newAgentOpen && spaceId && <NewAgentDialog spaceId={spaceId} onClose={() => setNewAgentOpen(false)} />}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}

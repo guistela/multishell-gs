@@ -16,6 +16,10 @@ interface UiState { sessions: Array<Omit<Session, "harness_running"> & { harness
 export type WorkspaceTab = "terminals" | "kanban" | "handoff" | "activity" | "snapshots" | "security" | "accounts";
 
 interface AppState {
+  confirmation: { message: string; action: () => void } | null;
+  notice: { message: string; retry?: () => void } | null;
+  recentlyClosed: Session[];
+  reopenSession: () => void;
   spaces: Space[];
   providers: Provider[];
   sessions: Session[];
@@ -63,6 +67,15 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   spaces: [], providers: [], sessions: [], selectedSessionId: null, settings: DEFAULT_SETTINGS, loaded: false, loadError: null,
   migration: null, restoredSessionIds: new Set(), selectedSpaceId: null, spaceLayouts: {},
+  confirmation: null, notice: null, recentlyClosed: [],
+  reopenSession: () => {
+    const old = get().recentlyClosed[get().recentlyClosed.length - 1];
+    if (!old || !get().spaces.some((s) => s.id === old.space_id)) return;
+    set({ recentlyClosed: get().recentlyClosed.slice(0, -1) });
+    const { id: _id, exit_code: _exit, ...base } = old;
+    get().addSession({ ...base, harness_running: false, detached: false, auto_start_harness: false });
+    set({ notice: { message: get().settings.language === "en" ? "Terminal reopened. Previous processes and conversation were not restored." : "Terminal reaberto. Processos e conversa anteriores não foram restaurados." } });
+  },
   workspaceTab: "terminals",
   setWorkspaceTab: (tab) => set({ workspaceTab: tab }),
 
@@ -134,6 +147,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     persistUi(get);
   },
   removeSession: (id) => {
+    const closing = get().sessions.find((s) => s.id === id);
+    if (!closing) return;
+    if (guardSessions([closing], get, set, () => get().removeSession(id))) return;
+    set({ recentlyClosed: [...get().recentlyClosed.slice(-9), closing] });
     void pty.kill(id).catch(() => {});
     if (get().sessions.find((s) => s.id === id)?.detached) void api.sessionReattach(id);
     set((s) => {
@@ -151,6 +168,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   closeSpaceSessions: (spaceId) => {
     const toRemove = get().sessions.filter((s) => s.space_id === spaceId);
+    if (guardSessions(toRemove, get, set, () => get().closeSpaceSessions(spaceId))) return;
+    set({ recentlyClosed: [...get().recentlyClosed, ...toRemove].slice(-10) });
     for (const s of toRemove) {
       void pty.kill(s.id).catch(() => {});
       if (s.detached) void api.sessionReattach(s.id);
@@ -191,6 +210,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   restartSession: (id, patch) => {
     const old = get().sessions.find((x) => x.id === id);
     if (!old) return null;
+    if (guardSessions([old], get, set, () => { get().restartSession(id, patch); }, true)) return null;
     void pty.kill(id).catch(() => {});
     if (old.detached) void api.sessionReattach(id);
     const { exit_code: _e, ...base } = old;
@@ -198,6 +218,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       sessions: s.sessions.map((x) => (x.id === id ? fresh : x)),
       selectedSessionId: s.selectedSessionId === id ? fresh.id : s.selectedSessionId,
+      selectedSpaceId: s.selectedSessionId === id ? fresh.space_id : s.selectedSpaceId,
     }));
     persistUi(get);
     return fresh;
@@ -246,4 +267,21 @@ async function loadInner(set: (partial: Partial<AppState>) => void) {
 function normalizeLayouts(value: unknown): Record<string, LayoutMode> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value).filter(([, mode]) => LAYOUT_MODES.includes(mode as LayoutMode)));
+}
+
+// Approval only covers the exact synchronous operation; later actions must ask again.
+let confirmedOperation = false;
+function guardSessions(sessions: Session[], get: () => AppState, set: (state: Partial<AppState>) => void, action: () => void, restart = false): boolean {
+  const active = sessions.filter((s) => s.exit_code == null && (s.harness_running || s.auto_start_harness));
+  if (confirmedOperation || !active.length) return false;
+  const names = active.map((s) => `“${s.title}”`).join(", ");
+  const message = get().settings.language === "en"
+    ? `${restart ? "Restart" : "Close"} ${names}? This stops the running agent. Its current work may be interrupted.`
+    : `${restart ? "Reiniciar" : "Fechar"} ${names}? Isso encerra o agente em execução e pode interromper o trabalho atual.`;
+  set({ confirmation: { message, action: () => {
+    set({ confirmation: null });
+    confirmedOperation = true;
+    try { action(); } finally { confirmedOperation = false; }
+  } } });
+  return true;
 }

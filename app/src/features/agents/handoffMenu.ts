@@ -41,6 +41,7 @@ export function handoffMenuItems(session: Session, reason: HandoffReason = "toke
         onClick: () =>
           handoffToNewAgent({
             spaceId: session.space_id,
+            cwd: session.cwd,
             provider,
             bypass: false,
             prompt: promptFor(provider.name),

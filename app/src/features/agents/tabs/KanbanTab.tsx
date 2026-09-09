@@ -119,7 +119,12 @@ export function KanbanTab() {
         "Ao concluir, responda com um resumo do que mudou.",
       ].join("\n")
     );
-    await pty.write(target.id, prompt + "\n").catch(() => {});
+    try {
+      await pty.write(target.id, prompt + "\n");
+    } catch {
+      setError(`Não foi possível enviar ${task.key}. A tarefa foi mantida como estava. Tente novamente.`);
+      return;
+    }
     useAppStore.getState().selectSession(target.id);
     await update(tasks.map((t) => (t.id === task.id ? { ...t, status: "in_progress" } : t)));
     setMessage(`${task.key} enviada para "${target.title}".`);

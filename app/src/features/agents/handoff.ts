@@ -27,7 +27,7 @@ export interface HandoffContext {
 /** Texto único de handoff, usado tanto pela aba quanto pelo menu de contexto das abas de terminal. */
 export function buildHandoffPrompt(ctx: HandoffContext): string {
   const originName = ctx.originProvider?.name || ctx.origin?.title || "Terminal anterior";
-  const spacePath = ctx.space?.base_path || (ctx.space ? `~/.multishell/profiles/${ctx.space.directory_name}` : "—");
+  const spacePath = ctx.origin?.cwd || ctx.space?.base_path || (ctx.space ? `~/.multishell/profiles/${ctx.space.directory_name}` : "—");
   const lines = [
     "=== PROTOCOLO DE CONTINUIDADE MULTIAGENTE (HANDOFF) ===",
     `Origem: [${originName}] -> Destino: [${ctx.targetName}]`,
@@ -60,7 +60,7 @@ export function deliverHandoffWhenHarnessReady(
     let sent = false;
     const isReady = () => {
       const s = useAppStore.getState().sessions.find((x) => x.id === sessionId);
-      return !s || !s.auto_start_harness;
+      return Boolean(s?.harness_running && !s.auto_start_harness);
     };
     const send = () => {
       if (sent) return;
@@ -68,14 +68,19 @@ export function deliverHandoffWhenHarnessReady(
       unsubscribe();
       clearTimeout(timer);
       setTimeout(() => {
-        void pty.write(sessionId, toSingleLine(prompt) + "\n").catch(() => {});
-        resolve();
+        void handoffToSession(sessionId, prompt).finally(resolve);
       }, readyDelayMs);
     };
     const unsubscribe = useAppStore.subscribe(() => {
       if (isReady()) send();
     });
-    const timer = setTimeout(send, timeoutMs);
+    const timer = setTimeout(() => {
+      if (sent) return;
+      sent = true;
+      unsubscribe();
+      useAppStore.setState({ notice: { message: "O agente não iniciou a tempo. Inicie-o no terminal e tente enviar o contexto novamente.", retry: () => { void handoffToSession(sessionId, prompt); } } });
+      resolve();
+    }, timeoutMs);
     if (isReady()) send();
   });
 }
@@ -91,7 +96,7 @@ export function toSingleLine(prompt: string): string {
 export interface HandoffResult {
   delivered: boolean;
   /** "no_harness": o destino é um shell puro; escrever ali executaria comandos. */
-  reason?: "no_harness" | "not_found";
+  reason?: "no_harness" | "not_found" | "write_failed";
 }
 
 /**
@@ -100,10 +105,22 @@ export interface HandoffResult {
  */
 export async function handoffToSession(targetSessionId: string, prompt: string): Promise<HandoffResult> {
   const target = useAppStore.getState().sessions.find((s) => s.id === targetSessionId);
-  if (!target) return { delivered: false, reason: "not_found" };
-  if (!target.harness_running) return { delivered: false, reason: "no_harness" };
+  if (!target) {
+    useAppStore.setState({ notice: { message: "O terminal de destino foi fechado. Escolha outro destino para enviar o contexto." } });
+    return { delivered: false, reason: "not_found" };
+  }
+  if (!target.harness_running || target.exit_code != null) {
+    useAppStore.setState({ notice: { message: "Inicie o agente no terminal antes de enviar o contexto.", retry: () => { void handoffToSession(targetSessionId, prompt); } } });
+    return { delivered: false, reason: "no_harness" };
+  }
 
-  await pty.write(targetSessionId, toSingleLine(prompt) + "\n").catch(() => {});
+  try {
+    await pty.write(targetSessionId, toSingleLine(prompt) + "\n");
+  } catch {
+    useAppStore.setState({ notice: { message: "Falha ao enviar contexto ao terminal. Tente novamente.", retry: () => { void handoffToSession(targetSessionId, prompt); } } });
+    return { delivered: false, reason: "write_failed" };
+  }
+  useAppStore.setState({ notice: { message: "Contexto enviado ao terminal. Confira a resposta do agente." } });
   useAppStore.getState().selectSession(targetSessionId);
   useAppStore.getState().setWorkspaceTab("terminals");
   return { delivered: true };
@@ -112,12 +129,14 @@ export async function handoffToSession(targetSessionId: string, prompt: string):
 /** Abre outro harness no mesmo espaço e entrega o contexto quando o agente estiver de pé. */
 export function handoffToNewAgent(opts: {
   spaceId: string;
+  cwd?: string | null;
   provider: Provider;
   bypass: boolean;
   prompt: string;
 }): Session {
   const session = useAppStore.getState().addSession({
     space_id: opts.spaceId,
+    cwd: opts.cwd ?? null,
     title: opts.provider.name,
     provider_id: opts.provider.id,
     bypass: opts.bypass,

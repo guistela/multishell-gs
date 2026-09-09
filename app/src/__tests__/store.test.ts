@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS, useAppStore } from "../store";
 beforeEach(() => {
   invokeMock.mockReset();
   invokeMock.mockResolvedValue(undefined);
-  useAppStore.setState({ spaces: [spaceA, spaceB], providers: [], sessions: [], selectedSessionId: null, settings: DEFAULT_SETTINGS, loaded: true, migration: null, restoredSessionIds: new Set() });
+  useAppStore.setState({ confirmation: null, recentlyClosed: [], notice: null, spaces: [spaceA, spaceB], providers: [], sessions: [], selectedSessionId: null, settings: DEFAULT_SETTINGS, loaded: true, migration: null, restoredSessionIds: new Set() });
 });
 
 describe("store: sessões", () => {
@@ -45,7 +45,10 @@ describe("store: sessões", () => {
   it("restartSession troca o id, mantém o título e aplica o patch", () => {
     const a = useAppStore.getState().addSession({ space_id: spaceA.id, title: "Meu shell" });
     useAppStore.getState().markHarnessStarted(a.id);
-    const fresh = useAppStore.getState().restartSession(a.id, { space_id: spaceB.id })!;
+    expect(useAppStore.getState().restartSession(a.id, { space_id: spaceB.id })).toBeNull();
+    expect(invokeMock).not.toHaveBeenCalledWith("pty_kill", expect.anything());
+    useAppStore.getState().confirmation!.action();
+    const fresh = useAppStore.getState().sessions[0];
     const st = useAppStore.getState();
     expect(fresh.id).not.toBe(a.id);
     expect(fresh).toMatchObject({ title: "Meu shell", space_id: spaceB.id });
@@ -74,6 +77,8 @@ describe("store: harness_running", () => {
     const s = useAppStore.getState().addSession({ space_id: spaceA.id });
     useAppStore.getState().markHarnessStarted(s.id);
     useAppStore.getState().removeSession(s.id);
+    expect(lastUi().sessions).toHaveLength(1);
+    useAppStore.getState().confirmation!.action();
     expect(lastUi().sessions).toEqual([]);
   });
 
@@ -230,5 +235,27 @@ describe("store: destacar (Fase 8)", () => {
     invokeMock.mockImplementation(async () => null);
     await useAppStore.getState().reloadUiState();
     expect(useAppStore.getState().sessions).toBe(before);
+  });
+});
+
+
+describe("session interruption protection", () => {
+  it("cancel keeps agent alive and the next attempt still requires approval", () => {
+    const s = useAppStore.getState().addSession({ space_id: spaceA.id, harness_running: true });
+    useAppStore.getState().removeSession(s.id);
+    useAppStore.setState({ confirmation: null });
+    expect(useAppStore.getState().sessions).toHaveLength(1);
+    expect(invokeMock).not.toHaveBeenCalledWith("pty_kill", expect.anything());
+    useAppStore.getState().removeSession(s.id);
+    expect(useAppStore.getState().confirmation).not.toBeNull();
+  });
+  it("bulk closing asks once and reopening does not relaunch the old agent", () => {
+    useAppStore.getState().addSession({ space_id: spaceA.id, harness_running: true, auto_start_harness: true, cwd: "/project" });
+    useAppStore.getState().closeSpaceSessions(spaceA.id);
+    expect(useAppStore.getState().sessions).toHaveLength(1);
+    useAppStore.getState().confirmation!.action();
+    expect(useAppStore.getState().sessions).toHaveLength(0);
+    useAppStore.getState().reopenSession();
+    expect(useAppStore.getState().sessions[0]).toMatchObject({ cwd: "/project", harness_running: false, auto_start_harness: false });
   });
 });

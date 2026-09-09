@@ -6,7 +6,7 @@ import type { Provider, Session } from "../../../types";
 const writeMock = vi.fn(() => Promise.resolve());
 vi.mock("../../terminal/pty", () => ({ pty: { write: (...args: unknown[]) => writeMock(...(args as [])), kill: () => Promise.resolve() } }));
 
-import { buildHandoffPrompt, handoffToSession } from "../handoff";
+import { buildHandoffPrompt, deliverHandoffWhenHarnessReady, handoffToSession } from "../handoff";
 
 const claude: Provider = {
   id: "p-claude", name: "Claude Code", executable: "claude", args: [], bypass_args: ["--dangerously-skip-permissions"],
@@ -70,4 +70,38 @@ describe("prompt de handoff sem texto inventado", () => {
     expect(p).toContain("Terminar o guardrail");
     expect(p).not.toContain("Próximas ações");
   });
+});
+
+
+it("reports failed writes without navigating and offers retry", async () => {
+  useAppStore.setState({ selectedSessionId: shell.id });
+  writeMock.mockRejectedValueOnce(new Error("closed"));
+  expect(await handoffToSession(agent.id, "context")).toEqual({ delivered: false, reason: "write_failed" });
+  expect(useAppStore.getState().selectedSessionId).toBe(shell.id);
+  expect(useAppStore.getState().notice?.retry).toBeDefined();
+});
+it("does not inject context into a shell when startup times out", async () => {
+  vi.useFakeTimers();
+  try {
+    const delivery = deliverHandoffWhenHarnessReady(shell.id, "context", { timeoutMs: 10 });
+    await vi.advanceTimersByTimeAsync(20);
+    await delivery;
+    expect(writeMock).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
+});
+it("uses the actual working directory in handoff context", () => {
+  expect(prompt()).toContain("(/a)");
+});
+
+it("delivers once after the agent launches", async () => {
+  vi.useFakeTimers();
+  try {
+    const delivery = deliverHandoffWhenHarnessReady(shell.id, "context", { readyDelayMs: 10, timeoutMs: 100 });
+    useAppStore.setState({ sessions: [{ ...shell, harness_running: true, auto_start_harness: false }] });
+    await vi.advanceTimersByTimeAsync(20);
+    await delivery;
+    expect(writeMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(writeMock).toHaveBeenCalledTimes(1);
+  } finally { vi.useRealTimers(); }
 });

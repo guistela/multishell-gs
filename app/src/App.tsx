@@ -1,3 +1,5 @@
+import { version } from "../package.json";
+import { SessionFeedback } from "./components/SessionFeedback";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SessionDropOverlay } from "./features/sessions/SessionDropOverlay";
@@ -29,7 +31,7 @@ export default function App() {
     return () => { offStore(); offReattach(); };
   }, []);
   const id = detachedSessionIdFromHash(window.location.hash);
-  return <>{id ? <DetachedApp sessionId={id} /> : <MainApp />}<SessionDropOverlay detachedSessionId={id} /></>;
+  return <>{id ? <DetachedApp sessionId={id} /> : <MainApp />}<SessionDropOverlay detachedSessionId={id} /><SessionFeedback /></>;
 }
 
 function MainApp() {
@@ -133,7 +135,7 @@ function MainApp() {
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="3" width="16" height="14" rx="3" stroke="currentColor" strokeWidth="1.5"/><path d="M7 3v14" stroke="currentColor" strokeWidth="1.5"/></svg>
         </button>
         <span className="app-wordmark">
-          Multishell <span style={{ fontSize: "10px", color: "#58a6ff", fontWeight: 700, marginLeft: 4 }}>v0.1</span>
+          Multishell <span style={{ fontSize: "10px", color: "#58a6ff", fontWeight: 700, marginLeft: 4 }}>v{version}</span>
         </span>
         <button
           className="titlebar-search-btn"
@@ -188,7 +190,7 @@ function MainApp() {
           </span>
         </div>
         <div className="statusbar-right">
-          <span>Multishell v0.1</span>
+          <span>Multishell v{version}</span>
         </div>
       </footer>
 

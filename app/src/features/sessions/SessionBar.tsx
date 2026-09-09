@@ -33,7 +33,7 @@ export function SessionBar({
   const sessionItems = useSessionMenuItems({ session, onOpenSettings });
 
   const start = async () => {
-    if (!provider) return;
+    if (!provider || harnessRunning) return;
     const line = await api.providerCommandLine(provider, session.bypass);
     await pty.write(session.id, line + "\n");
     markHarnessStarted(session.id);
@@ -58,6 +58,7 @@ export function SessionBar({
       {detachedWindow && <SessionDragHandle session={session} />}
       <select
         aria-label={t("bar.space")}
+        title={useAppStore.getState().settings.language === "en" ? "Restart terminal in another space" : "Reiniciar terminal em outro espaço"}
         disabled={detachedWindow}
         value={session.space_id}
         onChange={(e) => restartSession(session.id, { space_id: e.target.value })}
@@ -67,6 +68,7 @@ export function SessionBar({
       </select>
       <select
         aria-label={t("bar.provider")}
+        disabled={harnessRunning}
         value={session.provider_id ?? ""}
         onChange={(e) => updateSession(session.id, { provider_id: e.target.value || null })}
         onDoubleClick={(e) => e.stopPropagation()}
@@ -84,7 +86,7 @@ export function SessionBar({
       >
         bypass
       </button>
-      <button className="primary" disabled={!provider} onClick={() => void start()} onDoubleClick={(e) => e.stopPropagation()}>
+      <button className="primary" disabled={!provider || harnessRunning} onClick={() => void start()} onDoubleClick={(e) => e.stopPropagation()}>
         ▶ {t("bar.start")}
       </button>
       <span className="spacer" />

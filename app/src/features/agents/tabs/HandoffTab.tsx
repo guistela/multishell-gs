@@ -53,12 +53,12 @@ export function HandoffTab() {
       setFeedback(
         res.reason === "no_harness"
           ? `⚠️ "${target.title}" não tem agente rodando. Inicie o harness nele antes do handoff, ou use a Opção 2.`
-          : `⚠️ Terminal de destino não existe mais.`
+          : res.reason === "write_failed" ? "⚠️ Falha no envio. Tente novamente." : `⚠️ Terminal de destino não existe mais.`
       );
       setTimeout(() => setFeedback(null), 5000);
       return;
     }
-    setFeedback(`Bastão transferido para "${target.title}".`);
+    setFeedback(`Contexto enviado ao terminal "${target.title}".`);
     setTimeout(() => setFeedback(null), 4000);
   };
 
@@ -72,6 +72,7 @@ export function HandoffTab() {
     }
     handoffToNewAgent({
       spaceId: space.id,
+      cwd: activeSession?.cwd,
       provider,
       bypass: enableBypass,
       prompt: generateHandoffPromptText(provider.name),
