@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# O CI só lê o repositório. Sem isto o token herda as permissões amplas do padrão.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

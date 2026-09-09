@@ -21,11 +21,19 @@ export interface McpManifest {
   }>;
 }
 
+/** Nome que mexeria no protótipo do objeto do manifesto em vez de virar uma chave. */
+const RESERVED_NAMES = new Set(["__proto__", "constructor", "prototype"]);
+
+export function isValidMcpName(name: unknown): boolean {
+  return typeof name === "string" && name.trim() !== "" && !RESERVED_NAMES.has(name.trim());
+}
+
 /** Converte lista de servidores MCP para o formato oficial Claude/MCP JSON. */
 export function buildMcpManifest(servers: McpServerConfig[]): McpManifest {
-  const manifest: McpManifest = { mcpServers: {} };
+  const manifest: McpManifest = { mcpServers: Object.create(null) };
   for (const s of servers) {
     if (!s.enabled) continue;
+    if (!isValidMcpName(s.name)) continue;
     manifest.mcpServers[s.name] = {
       command: s.command,
       args: s.args,

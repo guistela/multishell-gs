@@ -9,8 +9,10 @@ import {
   defaultSpaces,
   makeDirectoryName,
   materialize,
+  normalizeSecurity,
   normalizeSpace,
   ps1Content,
+  secretEnvKeys,
   spaceRoot,
   spacesRoot,
   stripSpaceHome,
@@ -29,8 +31,6 @@ function prov(name: string, executable: string, extra: Partial<Provider> = {}): 
   return normalizeProvider({ id: crypto.randomUUID(), name, executable, ...extra });
 }
 
-const noSecret: BuildOpts["resolveSecret"] = () => null;
-
 function opts(over: Partial<BuildOpts> = {}): BuildOpts {
   return {
     space: spaceFechado(),
@@ -40,7 +40,6 @@ function opts(over: Partial<BuildOpts> = {}): BuildOpts {
     os: "darwin",
     userShell: "/bin/zsh",
     processEnv: { PATH: "/Users/fulano/.nvm/bin:/usr/bin" },
-    resolveSecret: noSecret,
     ...over,
   };
 }
@@ -69,6 +68,7 @@ describe("space.defaults", () => {
       share_ssh: false,
       share_git_config: false,
       inherit_process_env: false,
+      block_destructive_commands: false,
     });
   });
 
@@ -149,22 +149,26 @@ describe("space.buildSpawnPlan (mac)", () => {
       { key: "TOKEN", value: "", is_secret: true },
       { key: "PLAIN", value: "v", is_secret: false },
     ];
-    const seen: string[] = [];
-    const resolveSecret: BuildOpts["resolveSecret"] = (sid, key) => {
-      seen.push(`${sid}:${key}`);
-      return key === "TOKEN" ? "s3cr3t" : null;
-    };
-    const plan = buildSpawnPlan(opts({ space: s, resolveSecret }));
+    const plan = buildSpawnPlan(opts({ space: s }));
+    // Nenhum valor de segredo no plano: ele passa pelo renderer antes do spawn.
     expect("MISSING" in plan.env).toBe(false);
-    expect(plan.env.TOKEN).toBe("s3cr3t");
+    expect("TOKEN" in plan.env).toBe(false);
     expect(plan.env.PLAIN).toBe("v");
-    expect(seen).toEqual([`${s.id}:MISSING`, `${s.id}:TOKEN`]);
+    expect(plan.secret_keys).toEqual(["MISSING", "TOKEN"]);
   });
 
-  it("extra_env secreto do provider resolve pelo space_id", () => {
+  it("extra_env secreto do provider também fica só como chave", () => {
     const p = prov("P", "p", { extra_env: [{ key: "API", value: "", is_secret: true }] });
-    const plan = buildSpawnPlan(opts({ provider: p, resolveSecret: (_sid, key) => (key === "API" ? "k" : null) }));
-    expect(plan.env.API).toBe("k");
+    const plan = buildSpawnPlan(opts({ provider: p }));
+    expect("API" in plan.env).toBe(false);
+    expect(plan.secret_keys).toEqual(["API"]);
+  });
+
+  it("secretEnvKeys lista as chaves do espaço e do provider, sem repetir", () => {
+    const s = spaceFechado();
+    s.custom_env = [{ key: "API", value: "", is_secret: true }, { key: "PLAIN", value: "v", is_secret: false }];
+    const p = prov("P", "p", { extra_env: [{ key: "API", value: "", is_secret: true }, { key: "OUTRA", value: "", is_secret: true }] });
+    expect(secretEnvKeys(s, p)).toEqual(["API", "OUTRA"]);
   });
 
   it("chave vazia em custom_env é ignorada", () => {
@@ -442,5 +446,20 @@ describe("locale do espaço", () => {
     s.custom_env = [{ key: "LANG", value: "ja_JP.UTF-8", is_secret: false }];
     const plan = buildSpawnPlan(opts({ space: s }));
     expect(plan.env.LANG).toBe("ja_JP.UTF-8");
+  });
+});
+
+describe("normalizeSecurity: guardrail", () => {
+  it("preserva block_destructive_commands ligado", () => {
+    expect(normalizeSecurity({ block_destructive_commands: true }).block_destructive_commands).toBe(true);
+  });
+
+  it("ausente vira false, não undefined perdido", () => {
+    expect(normalizeSecurity({}).block_destructive_commands).toBe(false);
+  });
+
+  it("normalizeSpace não desliga o guardrail em silêncio", () => {
+    const s = normalizeSpace({ name: "x", directory_name: "x", security: { block_destructive_commands: true } });
+    expect(s.security.block_destructive_commands).toBe(true);
   });
 });

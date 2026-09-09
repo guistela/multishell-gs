@@ -61,3 +61,17 @@ describe("destino do manifesto", () => {
     expect(mcpTargetFile("/root/espaco", null)).toBe(path.join("/root/espaco", ".mcp.json"));
   });
 });
+
+describe("buildMcpManifest: nomes perigosos", () => {
+  const server = (name: string) => ({ id: name, name, command: "node", args: [], enabled: true });
+
+  it("ignora nome que polui o protótipo", () => {
+    const manifest = buildMcpManifest([server("__proto__"), server("ok")]);
+    expect(Object.keys(manifest.mcpServers)).toEqual(["ok"]);
+    expect(({} as any).command).toBeUndefined();
+  });
+
+  it("ignora constructor e prototype", () => {
+    expect(Object.keys(buildMcpManifest([server("constructor"), server("prototype")]).mcpServers)).toEqual([]);
+  });
+});

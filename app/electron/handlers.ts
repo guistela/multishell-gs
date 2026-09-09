@@ -7,7 +7,7 @@ import { COMMANDS, EVENTS, type Command, type StoreChangedEvent, type WindowRole
 import { Store } from "./store";
 import { PtyManager, defaultShell, type PtySender, type SpawnRequest } from "./pty";
 import { commandLine, normalizeProvider, presets, resumeLine, type Provider } from "./provider";
-import { defaultSpaces, makeDirectoryName, spaceRoot, spawnPlanFor, type Space } from "./space";
+import { defaultSpaces, makeDirectoryName, secretEnvKeys, spaceRoot, spawnPlanFor, type Space } from "./space";
 import { secretDelete, secretGetValue, secretSet } from "./secrets";
 import { migrateFromSwift } from "./migration";
 import type { WindowManager } from "./windows";
@@ -15,7 +15,7 @@ import { SpaceSnapshotManager, assertWorkDir, collectGitChangedFiles } from "./s
 import { WriteGuard } from "./write-guard";
 import { readProcessStats } from "./process-memory";
 import { listAuthSessions } from "./auth-sessions";
-import { syncSpaceMcpConfig, type McpServerConfig } from "./mcp";
+import { isValidMcpName, syncSpaceMcpConfig, type McpServerConfig } from "./mcp";
 
 export const SPACES_STORE = "spaces";
 export const MCP_STORE = "mcp-servers";
@@ -117,6 +117,20 @@ export function createHandlers(deps: HandlerDeps): Handlers {
     if (!s) throw new Error(`espaço não existe: ${id}`);
     return s;
   };
+  /** Valores das chaves que o espaço (e seu provider) declararam como segredo. */
+  const resolveSpawnSecrets = (spaceId?: string | null, providerId?: string | null): Record<string, string> => {
+    if (!spaceId) return {};
+    const space = loadSpaces().find((x) => x.id === spaceId);
+    if (!space) return {};
+    const provider = providerId ? loadProviders().find((p) => p.id === providerId) ?? null : null;
+    const env: Record<string, string> = {};
+    for (const key of secretEnvKeys(space, provider)) {
+      const value = secretGetValue(space.id, key);
+      if (value !== null) env[key] = value; // segredo ausente: omite, não falha
+    }
+    return env;
+  };
+
   const loadProviders = (): Provider[] => {
     const list = store.get<Provider[]>(PROVIDERS_STORE);
     if (Array.isArray(list) && list.length > 0) {
@@ -190,9 +204,15 @@ export function createHandlers(deps: HandlerDeps): Handlers {
       const err = await deps.openPath(root);
       if (err) throw new Error(err);
     },
+    /**
+     * Abre no Finder/Explorer. Só pasta: o `cwd` da sessão vem do OSC 7, que qualquer
+     * saída de terminal pode forjar. Sem esta checagem, um `.command` forjado viraria
+     * execução pelo LaunchServices.
+     */
     path_open: async ({ path: targetPath }) => {
       if (typeof targetPath !== "string" || !targetPath) return;
-      const err = await deps.openPath(targetPath);
+      const dir = await assertWorkDir(targetPath);
+      const err = await deps.openPath(dir);
       if (err) throw new Error(err);
     },
     space_spawn_plan: ({ spaceId, providerId, cwd }) => {
@@ -204,7 +224,7 @@ export function createHandlers(deps: HandlerDeps): Handlers {
       }
       // A pasta padrão das configurações vale quando o espaço não define pasta base.
       const settings = store.get<{ default_cwd?: string | null }>("settings");
-      return spawnPlanFor(space, provider, cwd ?? null, secretGetValue, settings?.default_cwd?.trim() || null);
+      return spawnPlanFor(space, provider, cwd ?? null, settings?.default_cwd?.trim() || null);
     },
 
     providers_list: () => loadProviders(),
@@ -238,7 +258,12 @@ export function createHandlers(deps: HandlerDeps): Handlers {
 
     migrate_from_swift: () => migrateFromSwift(deps.userDataDir),
 
-    pty_spawn: ({ req }, ctx) => pty.spawn({ webContents: ctx.sender }, req as SpawnRequest),
+    /** Os valores de segredo entram aqui, no main. O plano que o renderer carrega não os tem. */
+    pty_spawn: ({ req }, ctx) => {
+      const request = { ...(req as SpawnRequest) };
+      request.env = { ...(request.env ?? {}), ...resolveSpawnSecrets(request.space_id, request.provider_id) };
+      return pty.spawn({ webContents: ctx.sender }, request);
+    },
     pty_attach: ({ sessionId }, ctx) => pty.attach(str(sessionId, "session_id"), ctx.sender),
     pty_write: ({ sessionId, data }) => {
       const id = str(sessionId, "session_id");
@@ -355,6 +380,7 @@ export function createHandlers(deps: HandlerDeps): Handlers {
       for (const server of list) {
         const name = String(server?.name ?? "").trim();
         if (!name) throw new Error("Cada servidor MCP precisa de um nome.");
+        if (!isValidMcpName(name)) throw new Error(`Nome de servidor MCP reservado: "${name}".`);
         if (!String(server?.command ?? "").trim()) throw new Error(`O servidor "${name}" precisa de um comando.`);
         if (seen.has(name)) throw new Error(`Nome repetido no MCP: "${name}". Cada servidor precisa de nome único.`);
         seen.add(name);

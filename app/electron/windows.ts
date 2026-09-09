@@ -41,6 +41,21 @@ export class WindowManager {
     };
   }
 
+  /**
+   * O renderer só carrega o próprio bundle. `window.open` e navegação para fora
+   * ficam negados: nenhuma origem externa herda este preload.
+   */
+  private lockNavigation(win: BrowserWindow): void {
+    const wc = win.webContents;
+    wc.setWindowOpenHandler?.(() => ({ action: "deny" as const }));
+    wc.on("will-navigate", (event: { preventDefault(): void }, url: string) => {
+      const allowed = process.env.ELECTRON_RENDERER_URL;
+      if (allowed && url.startsWith(allowed)) return;
+      if (url.startsWith("file://")) return;
+      event.preventDefault();
+    });
+  }
+
   createMainWindow(): BrowserWindow {
     const win = new BrowserWindow({
       width: 1200,
@@ -56,6 +71,7 @@ export class WindowManager {
       webPreferences: this.webPreferences(),
     });
     this.main = win;
+    this.lockNavigation(win);
 
     win.once("ready-to-show", () => win.show());
     win.on("closed", () => {
@@ -94,6 +110,7 @@ export class WindowManager {
       webPreferences: this.webPreferences(),
     });
     this.detached.set(sessionId, win);
+    this.lockNavigation(win);
 
     win.once("ready-to-show", () => win.show());
     win.on("close", () => {

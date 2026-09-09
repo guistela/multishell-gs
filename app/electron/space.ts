@@ -38,8 +38,11 @@ export interface SpawnPlan {
   shell: string;
   shell_args: string[];
   cwd: string | null;
+  /** Ambiente SEM os valores de segredo: o plano passa pelo renderer. */
   env: Record<string, string>;
   inherit_env: boolean;
+  /** Chaves marcadas como segredo. O main resolve o valor no keyring, no spawn. */
+  secret_keys: string[];
 }
 
 export type Os = "darwin" | "win32" | "linux";
@@ -59,6 +62,7 @@ export function defaultSecurity(): SpaceSecurity {
     share_ssh: false,
     share_git_config: false,
     inherit_process_env: false,
+    block_destructive_commands: false,
   };
 }
 
@@ -102,6 +106,7 @@ export function normalizeSecurity(raw: unknown): SpaceSecurity {
     share_ssh: raw.share_ssh === true,
     share_git_config: raw.share_git_config === true,
     inherit_process_env: raw.inherit_process_env === true,
+    block_destructive_commands: raw.block_destructive_commands === true,
   };
 }
 
@@ -205,7 +210,6 @@ export interface BuildOpts {
   os: Os;
   userShell: string;
   processEnv: NodeJS.ProcessEnv;
-  resolveSecret: (spaceId: string, key: string) => string | null;
   /** Pasta padrão das configurações do terminal. Vale quando o espaço não tem pasta base. */
   defaultCwd?: string | null;
 }
@@ -225,19 +229,31 @@ function processPath(env: NodeJS.ProcessEnv): string {
   return (key && env[key]) || "";
 }
 
-function applyEnvVars(
-  env: Record<string, string>,
-  vars: EnvVar[],
-  spaceId: string,
-  resolveSecret: BuildOpts["resolveSecret"],
-): void {
+/** Chaves de segredo declaradas por um espaço + seu provider. Ordem = ordem de aplicação. */
+export function secretEnvKeys(space: Space, provider: Provider | null): string[] {
+  const keys: string[] = [];
+  const collect = (vars: EnvVar[]) => {
+    for (const v of vars ?? []) {
+      const key = v.key.trim();
+      if (key !== "" && v.is_secret && !keys.includes(key)) keys.push(key);
+    }
+  };
+  collect(space.custom_env);
+  if (provider) collect(normalizeEnvVars(provider.extra_env));
+  return keys;
+}
+
+/**
+ * Aplica as variáveis não secretas. As secretas só entram em `secretKeys`:
+ * o valor fica no main e é resolvido no `pty_spawn`, nunca no plano que o renderer vê.
+ */
+function applyEnvVars(env: Record<string, string>, vars: EnvVar[], secretKeys: string[]): void {
   for (const v of vars) {
     const key = v.key.trim();
     if (key === "") continue;
     if (v.is_secret) {
-      const value = resolveSecret(spaceId, key);
-      if (value === null) continue; // segredo ausente: omite, não falha
-      env[key] = value;
+      if (!secretKeys.includes(key)) secretKeys.push(key);
+      delete env[key];
     } else {
       env[key] = v.value;
     }
@@ -283,14 +299,15 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
     env.PATH = `/opt/homebrew/bin:/usr/local/bin:${processPath(o.processEnv)}`;
   }
 
+  const secret_keys: string[] = [];
   // custom_env do espaço.
-  applyEnvVars(env, o.space.custom_env, o.space.id, o.resolveSecret);
+  applyEnvVars(env, o.space.custom_env, secret_keys);
 
   // provider: pasta de config dentro do espaço + extra_env por cima.
   if (o.provider) {
     const key = o.provider.config_env_key?.trim();
     if (key) env[key] = providerConfigDir(root, o.provider, o.os);
-    applyEnvVars(env, o.provider.extra_env, o.space.id, o.resolveSecret);
+    applyEnvVars(env, o.provider.extra_env, secret_keys);
   }
 
   return {
@@ -301,6 +318,7 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
     cwd: o.cwd ?? o.space.base_path ?? o.defaultCwd ?? o.realHome,
     env,
     inherit_env: o.space.security.inherit_process_env,
+    secret_keys,
   };
 }
 
@@ -457,7 +475,6 @@ export async function spawnPlanFor(
   space: Space,
   provider: Provider | null,
   cwd: string | null,
-  resolveSecret: BuildOpts["resolveSecret"],
   defaultCwd?: string | null,
 ): Promise<SpawnPlan> {
   const osName = currentOs();
@@ -471,7 +488,6 @@ export async function spawnPlanFor(
     os: osName,
     userShell: defaultShell(),
     processEnv: process.env,
-    resolveSecret,
     defaultCwd,
   });
 }

@@ -25,7 +25,10 @@ export interface Space {
 
 export interface SpawnPlan {
   shell: string; shell_args: string[]; cwd: string | null;
+  /** Sem os valores de segredo: o main os injeta no `pty_spawn`. */
   env: Record<string, string>; inherit_env: boolean;
+  /** Chaves marcadas como segredo no espaço/provider. Só os nomes chegam aqui. */
+  secret_keys: string[];
 }
 
 export interface TerminalSettings {

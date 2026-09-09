@@ -31,7 +31,9 @@ interface Space {
 
 interface SpawnPlan {               // o que o front passa para pty_spawn
   shell: string; shell_args: string[]; cwd: string | null;
-  env: Record<string,string>; inherit_env: boolean;
+  env: Record<string,string>;        // SEM valores de segredo: o plano passa pelo renderer
+  inherit_env: boolean;
+  secret_keys: string[];             // só os nomes; o main resolve o valor no pty_spawn
 }
 
 interface TerminalSettings {
@@ -65,7 +67,11 @@ Pasta de config do provider dentro do espaço: `<raiz>/providers/<slug do provid
 | `migrate_from_swift` | | `MigrationReport { spaces: number, providers: number, sessions: number, notes: string[] }` | rust-secrets |
 | `pty_spawn/pty_write/pty_resize/pty_kill/default_shell` | | | existe |
 
-`space_spawn_plan` monta o env completo (HOME/XDG/ZDOTDIR no mac; USERPROFILE/APPDATA/LOCALAPPDATA/`-NoProfile` no windows), gera o rc do shell no espaço, aplica `security`, injeta `custom_env` (resolvendo segredos via keyring) e, se `provider_id`, `config_env_key` + `extra_env` do provider.
+`space_spawn_plan` monta o env (HOME/XDG/ZDOTDIR no mac; USERPROFILE/APPDATA/LOCALAPPDATA/`-NoProfile` no windows), gera o rc do shell no espaço, aplica `security`, injeta `custom_env` e, se `provider_id`, `config_env_key` + `extra_env` do provider.
+
+Valor de segredo nunca entra no plano. As chaves marcadas como `is_secret` saem em `secret_keys`; `pty_spawn` recebe `space_id` (e `provider_id`) e lê o keyring no processo main, antes de criar o shell. Assim nenhum segredo trafega pelo renderer.
+
+`path_open` só abre pasta existente com caminho absoluto. O `cwd` da sessão vem do OSC 7, que qualquer saída de terminal pode forjar; sem essa checagem um arquivo executável forjado abriria pelo LaunchServices.
 
 ## Eventos
 `pty-output-<session_id>` (bytes), `pty-exit` ({session_id, code}), `pty-closed` (session_id).

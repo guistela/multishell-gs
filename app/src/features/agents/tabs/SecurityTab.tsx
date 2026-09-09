@@ -35,11 +35,16 @@ export function SecurityTab() {
 
         <div className={`security-item ${guardOn ? "active" : ""}`} data-testid="security-guardrail">
           <span className="status-indicator">{guardOn ? "● ATIVO" : "○ DESLIGADO"}</span>
-          <h4>Guardrail de comandos destrutivos</h4>
+          <h4>Guardrail de comandos digitados</h4>
           <p>
             {guardOn
-              ? "rm -rf /, fork bomb, mkfs, dd em disco e reset --hard são barrados antes do shell receber."
+              ? "Barra rm -rf /, fork bomb, mkfs, dd em disco e reset --hard no que você digita ou cola."
               : "Ligue em Configurações do espaço → Segurança para barrar rm -rf /, fork bomb, mkfs e dd em disco."}
+          </p>
+          <p className="security-caveat">
+            Não vale para o agente: ele roda dentro do terminal e cria processos próprios.
+            Comando vindo do histórico ou de <code>eval</code> também escapa. Para conter o agente,
+            use o modo sem bypass ou faça um snapshot antes.
           </p>
         </div>
 

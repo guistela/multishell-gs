@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { claude, invokeMock, spaceA, spaceB } from "../../../test/bridge-mocks";
 import "../../../i18n";
 import { DEFAULT_SETTINGS, useAppStore } from "../../../store";
-import { markOutput, resetActivity } from "../../terminal/agentActivity";
+import { IDLE_AFTER_MS, markOutput, resetActivity } from "../../terminal/agentActivity";
 import { Sidebar } from "../Sidebar";
 
 beforeEach(() => {
@@ -46,7 +46,9 @@ describe("Sidebar", () => {
     render(<Sidebar onOpenSettings={() => {}} />);
     expect(screen.getByTestId("harness-dot")).toHaveAttribute("data-state", "working");
 
-    markOutput("s1", Date.now() - 5000);
+    // A marca só avança: para simular o silêncio, zera e remarca no passado.
+    resetActivity();
+    markOutput("s1", Date.now() - IDLE_AFTER_MS - 1000);
     await waitFor(() => expect(screen.getByTestId("harness-dot")).toHaveAttribute("data-state", "idle"));
   });
 

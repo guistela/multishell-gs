@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,8 +15,9 @@ const { ipcHandles, claude, spaceA, spacesRoot, spawnPlanFor, secrets } = vi.hoi
     claude,
     spaceA,
     spacesRoot: `${process.env.TMPDIR ?? "/tmp"}/multishell-handlers-root`,
-    spawnPlanFor: vi.fn(async (space: any, provider: any, cwd: string | null) => ({
-      shell: "/bin/zsh", shell_args: [], cwd, env: { HOME: `/root/${space.directory_name}`, ...(provider ? { PROVIDER: provider.id } : {}) }, inherit_env: false,
+    spawnPlanFor: vi.fn(async (space: any, provider: any, cwd: string | null): Promise<any> => ({
+      shell: "/bin/zsh", shell_args: [], cwd, inherit_env: false, secret_keys: [],
+      env: { HOME: `/root/${space.directory_name}`, ...(provider ? { PROVIDER: provider.id } : {}) } as Record<string, string>,
     })),
     secrets: new Map<string, string>(),
   };
@@ -45,6 +46,9 @@ vi.mock("../space", () => ({
     return out;
   },
   spaceRoot: (s: any) => `${spacesRoot}/${s.directory_name}`,
+  secretEnvKeys: (space: any, provider: any) => [
+    ...(space.custom_env ?? []), ...(provider?.extra_env ?? []),
+  ].filter((v: any) => v.is_secret).map((v: any) => v.key),
   spawnPlanFor,
 }));
 
@@ -162,16 +166,30 @@ describe("spaces", () => {
     rmSync(spacesRoot, { recursive: true, force: true });
   });
 
-  it("path_open abre qualquer caminho válido", async () => {
-    await call("path_open", { path: "/Users/fulano/projeto" });
-    expect(openPath).toHaveBeenCalledWith("/Users/fulano/projeto");
+  it("path_open abre a pasta pedida", async () => {
+    await call("path_open", { path: dir });
+    expect(openPath).toHaveBeenCalledWith(realpathSync(dir));
+  });
+
+  // O cwd da sessão vem do OSC 7, que qualquer saída de terminal pode emitir.
+  it("path_open recusa arquivo: OSC 7 forjado não vira execução via LaunchServices", async () => {
+    const arquivo = join(dir, "pwn.command");
+    writeFileSync(arquivo, "#!/bin/sh\necho pwn\n");
+    await expect(async () => call("path_open", { path: arquivo })).rejects.toThrow(/pasta/i);
+    expect(openPath).not.toHaveBeenCalled();
+  });
+
+  it("path_open recusa caminho relativo e pasta inexistente", async () => {
+    await expect(async () => call("path_open", { path: "relativo/x" })).rejects.toThrow();
+    await expect(async () => call("path_open", { path: join(dir, "nao-existe") })).rejects.toThrow();
+    expect(openPath).not.toHaveBeenCalled();
   });
 
   it("space_spawn_plan resolve espaço e provider e repassa cwd", async () => {
     const plan: any = await call("space_spawn_plan", { spaceId: "sp-a", providerId: "pv-claude", cwd: "/tmp" });
     expect(plan.cwd).toBe("/tmp");
     expect(plan.env.PROVIDER).toBe("pv-claude");
-    expect(spawnPlanFor).toHaveBeenCalledWith(spaceA, claude, "/tmp", expect.any(Function), null);
+    expect(spawnPlanFor).toHaveBeenCalledWith(spaceA, claude, "/tmp", null);
     await expect(async () => call("space_spawn_plan", { spaceId: "nope", providerId: null, cwd: null })).rejects.toThrow(/espaço/);
     await expect(async () => call("space_spawn_plan", { spaceId: "sp-a", providerId: "nope", cwd: null })).rejects.toThrow(/provider/);
   });
@@ -181,7 +199,7 @@ describe("spaces", () => {
     store.set("settings", { shell: null, default_cwd: "/Users/gs/dev", font_family: "Menlo", font_size: 13, theme: "dark", language: "pt-BR" });
     h = createHandlers({ store, pty: {} as any, userDataDir: dir, openPath });
     await call("space_spawn_plan", { spaceId: "sp-a", providerId: null, cwd: null });
-    expect(spawnPlanFor).toHaveBeenLastCalledWith(spaceA, null, null, expect.any(Function), "/Users/gs/dev");
+    expect(spawnPlanFor).toHaveBeenLastCalledWith(spaceA, null, null, "/Users/gs/dev");
   });
 });
 
@@ -325,7 +343,8 @@ describe("pty e util", () => {
     h = createHandlers({ store: new Store(dir), pty: pty as any, userDataDir: dir, openPath });
     const req = { session_id: "s1", shell: "/bin/sh" };
     await call("pty_spawn", { req });
-    expect(pty.spawn).toHaveBeenCalledWith({ webContents: ctx.sender }, req);
+    // O main normaliza o env para injetar os segredos do espaço.
+    expect(pty.spawn).toHaveBeenCalledWith({ webContents: ctx.sender }, { ...req, env: {} });
     await call("pty_write", { sessionId: "s1", data: [104, 105] });
     expect(pty.write).toHaveBeenCalledWith("s1", [104, 105]);
     await call("pty_resize", { sessionId: "s1", cols: 80, rows: 24 });
@@ -591,5 +610,61 @@ describe("snapshots", () => {
     await call("snapshot_delete", { spaceId: "sp-a", snapshotId: "snap-1" });
     expect(snapshots.deleteSnapshot).toHaveBeenCalledWith("sp-a", "snap-1");
     await expect(async () => call("snapshot_delete", { spaceId: "sp-a" })).rejects.toThrow(/snapshot_id/i);
+  });
+});
+
+describe("segredos não passam pelo renderer", () => {
+  const ptySpy = { spawn: vi.fn(), write: vi.fn(), resize: vi.fn(), kill: vi.fn(), cwd: vi.fn(async () => "/x") };
+  const comSegredo = {
+    ...spaceA,
+    custom_env: [{ key: "API_KEY", value: "", is_secret: true }, { key: "REGIAO", value: "br", is_secret: false }],
+  };
+  const planoPadrao = spawnPlanFor.getMockImplementation()!;
+
+  beforeEach(() => {
+    ptySpy.spawn.mockClear();
+    secrets.set("sp-a:API_KEY", "valor-super-secreto");
+    // O plano real omite o valor do segredo e só diz qual chave é segredo.
+    spawnPlanFor.mockImplementation(async (space: any, _p: any, cwd: string | null) => {
+      const env: Record<string, string> = { HOME: `/root/${space.directory_name}` };
+      const secret_keys: string[] = [];
+      for (const v of space.custom_env ?? []) {
+        if (v.is_secret) secret_keys.push(v.key);
+        else env[v.key] = v.value;
+      }
+      return { shell: "/bin/zsh", shell_args: [], cwd, env, inherit_env: false, secret_keys };
+    });
+    h = createHandlers({ store: new Store(dir), pty: ptySpy as any, userDataDir: dir, openPath });
+    h.space_save({ space: comSegredo }, ctx);
+  });
+  afterEach(() => spawnPlanFor.mockImplementation(planoPadrao));
+
+  it("space_spawn_plan devolve só o nome da chave, nunca o valor", async () => {
+    const plan: any = await call("space_spawn_plan", { spaceId: "sp-a", providerId: null, cwd: null });
+    expect(plan.env.API_KEY).toBeUndefined();
+    expect(JSON.stringify(plan)).not.toContain("valor-super-secreto");
+    expect(plan.secret_keys).toEqual(["API_KEY"]);
+    expect(plan.env.REGIAO).toBe("br");
+  });
+
+  it("pty_spawn resolve o segredo no main antes de criar o shell", async () => {
+    const plan: any = await call("space_spawn_plan", { spaceId: "sp-a", providerId: null, cwd: null });
+    await call("pty_spawn", { req: { ...plan, session_id: "s1", space_id: "sp-a" } });
+    const enviado = ptySpy.spawn.mock.calls[0][1];
+    expect(enviado.env.API_KEY).toBe("valor-super-secreto");
+    expect(enviado.env.REGIAO).toBe("br");
+  });
+
+  it("o main só injeta o que o espaço declarou como segredo", async () => {
+    secrets.set("sp-a:NAO_DECLARADO", "outro-segredo");
+    await call("pty_spawn", { req: { session_id: "s2", space_id: "sp-a", shell: "/bin/zsh", env: {} } });
+    const enviado = ptySpy.spawn.mock.calls[0][1];
+    expect(enviado.env.API_KEY).toBe("valor-super-secreto");
+    expect(enviado.env.NAO_DECLARADO).toBeUndefined();
+  });
+
+  it("sessão sem space_id continua funcionando (shell simples)", async () => {
+    await call("pty_spawn", { req: { session_id: "s3", shell: "/bin/zsh", env: { A: "1" } } });
+    expect(ptySpy.spawn.mock.calls[0][1].env).toEqual({ A: "1" });
   });
 });

@@ -9,6 +9,10 @@ import { EVENTS, type PtyExitEvent, type PtyOutputEvent, type SpawnResult } from
 
 export interface SpawnRequest {
   session_id: string;
+  /** Espaço da sessão. O main usa para resolver os segredos do keyring no spawn. */
+  space_id?: string | null;
+  /** Provider da sessão, quando há harness. Mesma razão do `space_id`. */
+  provider_id?: string | null;
   shell: string;
   shell_args?: string[];
   cwd?: string | null;
@@ -40,6 +44,8 @@ interface PtySession {
   bytesIn: number;
   bytesOut: number;
   startedAt: string;
+  /** Epoch ms do último byte vindo do shell. `null` enquanto ele não escreveu nada. */
+  lastOutputAt: number | null;
 }
 
 /** Uso real de uma sessão viva. Serializável: vai como está para o renderer. */
@@ -50,6 +56,11 @@ export interface SessionStats {
   bytes_in: number;
   bytes_out: number;
   started_at: string;
+  /**
+   * Epoch ms do último output do shell. Fonte única do indicador de atividade:
+   * o main vê todo byte, inclusive de sessão destacada em outra janela.
+   */
+  last_output_at: number | null;
 }
 
 /** Fila de chunks limitada em bytes. Descarta do início quando passa de `max`. */
@@ -125,7 +136,7 @@ export class PtyManager {
     const sessionId = req.session_id;
     const session: PtySession = {
       proc, pid: proc.pid, senders: new Set([win.webContents]), buffer: new RingBuffer(),
-      bytesIn: 0, bytesOut: 0, startedAt: new Date().toISOString(),
+      bytesIn: 0, bytesOut: 0, startedAt: new Date().toISOString(), lastOutputAt: null,
     };
     this.sessions.set(sessionId, session);
 
@@ -150,10 +161,12 @@ export class PtyManager {
     return s.buffer.snapshot();
   }
 
-  /** Grava no ring buffer e repassa às janelas anexadas. Público para teste. */
-  pushOutput(sessionId: string, bytes: Buffer): void {
+  /** Grava no ring buffer e repassa às janelas anexadas. Público para teste.
+   *  `fromShell=false` para texto do próprio app: aviso do guardrail não é o agente trabalhando. */
+  pushOutput(sessionId: string, bytes: Buffer, fromShell = true): void {
     const s = this.sessions.get(sessionId);
     if (!s) return;
+    if (fromShell) s.lastOutputAt = Date.now();
     // Cópia: o Buffer do node-pty pode ser fatia de um slab compartilhado.
     const own = Buffer.from(bytes);
     s.bytesOut += own.length;
@@ -183,7 +196,7 @@ export class PtyManager {
   /** Escreve uma mensagem do próprio app no terminal, sem passar pelo shell. */
   notify(sessionId: string, message: string): void {
     if (!this.sessions.has(sessionId)) return;
-    this.pushOutput(sessionId, Buffer.from(message, "utf8"));
+    this.pushOutput(sessionId, Buffer.from(message, "utf8"), false);
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
@@ -226,7 +239,10 @@ export class PtyManager {
   stats(sessionId: string): SessionStats | null {
     const s = this.sessions.get(sessionId);
     if (!s) return null;
-    return { session_id: sessionId, pid: s.pid, bytes_in: s.bytesIn, bytes_out: s.bytesOut, started_at: s.startedAt };
+    return {
+      session_id: sessionId, pid: s.pid, bytes_in: s.bytesIn, bytes_out: s.bytesOut,
+      started_at: s.startedAt, last_output_at: s.lastOutputAt,
+    };
   }
 
   /** Métricas de todas as sessões vivas. */

@@ -100,6 +100,8 @@ export interface SessionMetrics {
   memory_bytes: number | null;
   /** CPU somada da árvore. Mostra agente processando mesmo em silêncio. */
   cpu_percent: number | null;
+  /** Epoch ms do último output do shell. Fonte única do indicador de atividade. */
+  last_output_at: number | null;
 }
 
 export interface SnapshotMeta {

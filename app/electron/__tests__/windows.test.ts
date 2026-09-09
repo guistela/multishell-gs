@@ -7,13 +7,22 @@ const { FakeBrowserWindow, created } = vi.hoisted(() => {
     static all: FakeBrowserWindow[] = [];
     readonly opts: any;
     readonly listeners = new Map<string, Array<(...a: any[]) => void>>();
-    readonly webContents: { id: number; send: ReturnType<typeof vi.fn>; isDestroyed: () => boolean };
+    readonly webContents: any;
     loaded: { url?: string; file?: string; options?: any } = {};
     title = "";
     destroyed = false;
     constructor(opts: any) {
       this.opts = opts;
-      this.webContents = { id: nextId++, send: vi.fn(), isDestroyed: () => this.destroyed };
+      const wcListeners = new Map<string, Array<(...a: any[]) => void>>();
+      this.webContents = {
+        id: nextId++,
+        send: vi.fn(),
+        isDestroyed: () => this.destroyed,
+        windowOpenHandler: null,
+        setWindowOpenHandler(fn: (d: any) => any) { this.windowOpenHandler = fn; },
+        on(ev: string, fn: (...a: any[]) => void) { wcListeners.set(ev, [...(wcListeners.get(ev) ?? []), fn]); return this; },
+        emit(ev: string, ...a: any[]) { for (const fn of wcListeners.get(ev) ?? []) fn(...a); },
+      };
       FakeBrowserWindow.all.push(this);
       created.push(this);
     }
@@ -123,5 +132,25 @@ describe("WindowManager", () => {
     expect(main.webContents.send).not.toHaveBeenCalled();
     expect(w1.webContents.send).toHaveBeenCalledWith("store-changed", { name: "ui-state" });
     expect(w2.webContents.send).not.toHaveBeenCalled();
+  });
+});
+
+describe("navegação e janelas novas", () => {
+  it("bloqueia window.open em toda janela criada", () => {
+    const wm = new WindowManager(opts);
+    wm.createMainWindow();
+    wm.openDetached("s1");
+    for (const win of created) {
+      expect(win.webContents.windowOpenHandler).toBeTypeOf("function");
+      expect(win.webContents.windowOpenHandler({ url: "https://exemplo.com" })).toEqual({ action: "deny" });
+    }
+  });
+
+  it("bloqueia navegação para fora do app", () => {
+    const wm = new WindowManager(opts);
+    const win = wm.createMainWindow() as any;
+    const ev = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+    win.webContents.emit("will-navigate", ev, "https://exemplo.com");
+    expect(ev.defaultPrevented).toBe(true);
   });
 });

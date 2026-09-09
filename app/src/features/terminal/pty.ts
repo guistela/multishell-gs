@@ -4,6 +4,9 @@ export type { PtyExit };
 
 export interface SpawnRequest {
   session_id: string;
+  /** O main usa para resolver os segredos do keyring. Nenhum valor passa por aqui. */
+  space_id?: string | null;
+  provider_id?: string | null;
   shell: string;
   shell_args?: string[];
   cwd?: string | null;

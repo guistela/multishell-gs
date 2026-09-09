@@ -72,7 +72,7 @@ flowchart TD
 - **Contas.** Mostra as sessões de login das CLIs dentro do espaço — `gh`, `gcloud`, `az`, `firebase`, `aws`, `npm`, `kubectl`, `vercel`. Entrar e sair acontecem no terminal, porque esses fluxos são interativos.
 - **Atividade.** Tráfego, tempo de vida e memória por terminal. Selo de aviso quando um passa de 1 GB.
 - **Snapshots.** Guarda o conteúdo dos arquivos modificados e rastreados pelo git na pasta do terminal, com rollback confirmado.
-- **Guardrail de comandos destrutivos.** Opcional, ligado por espaço: barra `rm -rf /`, fork bomb, `mkfs` e `dd` em disco antes do shell receber a linha.
+- **Guardrail de comandos digitados.** Opcional, ligado por espaço: barra `rm -rf /`, fork bomb, `mkfs` e `dd` em disco no que você digita ou cola. Não alcança o agente, que roda dentro do terminal e cria os próprios processos; para conter o agente use o modo sem bypass ou um snapshot antes.
 - **Terminais.** Abas por espaço, layouts (único, grade, vertical, horizontal, lista), tema por terminal e janelas destacadas em outro monitor sem derrubar o processo.
 
 ---

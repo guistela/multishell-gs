@@ -7,11 +7,18 @@ import { useEffect, useState } from "react";
  */
 export type AgentState = "working" | "idle" | "off";
 
-/** Silêncio maior que isto conta como "terminou e está esperando". */
-export const IDLE_AFTER_MS = 3000;
+/**
+ * Silêncio maior que isto conta como "terminou e está esperando".
+ * Agente trabalhando fica calado em rajadas de segundos (resposta da API, ferramenta longa).
+ * 3s marcava "parado" no meio do trabalho.
+ */
+export const IDLE_AFTER_MS = 12_000;
 
-/** CPU acima disso na árvore do terminal significa agente processando, mesmo calado. */
-export const BUSY_CPU_PERCENT = 8;
+/**
+ * CPU da árvore acima disso significa agente processando, mesmo calado.
+ * Medido com `ps`: agente parado no prompt fica em 0,0–0,1; trabalhando passa de 2.
+ */
+export const BUSY_CPU_PERCENT = 2;
 
 /** CPU por sessão, alimentada pelas métricas do processo main. */
 const cpuBySession = new Map<string, number>();
@@ -23,9 +30,23 @@ export function setSessionCpu(sessionId: string, cpuPercent: number | null): voi
 
 const lastOutput = new Map<string, number>();
 
+/** Guarda a marca mais recente. Renderer e main veem a mesma sessão por caminhos diferentes. */
+function mergeOutput(sessionId: string, at: number): void {
+  const previous = lastOutput.get(sessionId);
+  if (previous == null || at > previous) lastOutput.set(sessionId, at);
+}
+
 /** Chamado pelo Terminal a cada chunk recebido. Barato de propósito: sem estado React. */
 export function markOutput(sessionId: string, at: number = Date.now()): void {
-  lastOutput.set(sessionId, at);
+  mergeOutput(sessionId, at);
+}
+
+/**
+ * Marca vinda do `session_metrics`. O main vê todo byte de toda sessão, inclusive
+ * a destacada em outra janela — que nesta janela nunca recebe chunk nenhum.
+ */
+export function setSessionOutputAt(sessionId: string, at: number | null): void {
+  if (at != null) mergeOutput(sessionId, at);
 }
 
 export function forgetSession(sessionId: string): void {

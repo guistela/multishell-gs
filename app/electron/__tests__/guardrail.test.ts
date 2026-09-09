@@ -27,3 +27,23 @@ describe("guardrail.isCommandDestructive", () => {
     expect(isCommandDestructive("DROP DATABASE production;").dangerous).toBe(true);
   });
 });
+
+describe("variações de rm -rf que passavam batido", () => {
+  const casos = [
+    "rm -r -f /",
+    "rm --force --recursive ~",
+    "rm --recursive --force $HOME",
+    "rm -rf $HOME/",
+    "sudo rm -rf /",
+  ];
+  for (const cmd of casos) {
+    it(`bloqueia "${cmd}"`, () => {
+      expect(isCommandDestructive(cmd).dangerous).toBe(true);
+    });
+  }
+
+  it("não bloqueia remoção comum de pasta do projeto", () => {
+    expect(isCommandDestructive("rm -rf node_modules").dangerous).toBe(false);
+    expect(isCommandDestructive("rm -rf ./dist").dangerous).toBe(false);
+  });
+});

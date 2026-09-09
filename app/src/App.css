@@ -1492,6 +1492,8 @@ button.handoff-copy-btn { padding: 4px 10px; font-size: 11px; }
 .terminal-tab-agent-state.working { background: #3ddc84; animation: agent-pulse 1.2s ease-in-out infinite; }
 .terminal-tab-agent-state.idle { background: #6e7681; }
 
+.security-caveat { opacity: 0.75; font-size: 0.85em; }
+
 @media (prefers-reduced-motion: reduce) {
   .terminal-tab-agent-state.working,
   .harness-dot.working { animation: none; }

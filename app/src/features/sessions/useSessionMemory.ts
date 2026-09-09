@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { setSessionCpu } from "../terminal/agentActivity";
+import { setSessionCpu, setSessionOutputAt } from "../terminal/agentActivity";
 
 /** Curto o bastante para o indicador de atividade acompanhar o agente. */
 const REFRESH_MS = 2000;
@@ -23,6 +23,8 @@ export function useSessionMemory(): Record<string, number> {
           if (m.memory_bytes != null) next[m.session_id] = m.memory_bytes;
           // Alimenta o indicador de atividade: agente calado mas ocupado aparece como trabalhando.
           setSessionCpu(m.session_id, m.cpu_percent);
+          // Fonte única do "working": vale também para sessão destacada em outra janela.
+          setSessionOutputAt(m.session_id, m.last_output_at ?? null);
         }
         setMemory(next);
       } catch {

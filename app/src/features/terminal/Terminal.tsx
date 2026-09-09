@@ -143,6 +143,9 @@ export function Terminal({ session, onOpenSettings }: Props) {
       // nosemgrep: javascript.lang.security.audit.spawn-shell-true.spawn-shell-true
       const result = await pty.spawn({
         session_id: sessionId,
+        // O main resolve os segredos do espaço no spawn: eles não passam por este processo.
+        space_id: session.space_id,
+        provider_id: session.provider_id,
         shell: plan.shell,
         shell_args: plan.shell_args,
         cwd: plan.cwd,

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { markOutput, resetActivity } from "../../terminal/agentActivity";
+import { IDLE_AFTER_MS, markOutput, resetActivity } from "../../terminal/agentActivity";
 import { invokeMock, spaceA, spaceB } from "../../../test/bridge-mocks";
 import "../../../i18n";
 import { useAppStore } from "../../../store";
@@ -148,7 +148,9 @@ describe("workspace layouts", () => {
     expect(within(alpha).getByTestId("tab-agent-state")).toHaveAttribute("data-state", "working");
 
     // Passado o silêncio, o agente conta como parado esperando o usuário.
-    markOutput("a", Date.now() - 5000);
+    // A marca só avança: para simular o silêncio, zera e remarca no passado.
+    resetActivity();
+    markOutput("a", Date.now() - IDLE_AFTER_MS - 1000);
     await waitFor(() =>
       expect(within(screen.getByRole("tab", { name: /Alpha/ })).getByTestId("tab-agent-state")).toHaveAttribute("data-state", "idle")
     );

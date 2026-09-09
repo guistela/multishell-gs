@@ -239,3 +239,36 @@ describe("PtyManager.stats", () => {
     expect(pty.stats("nada")).toBeNull();
   });
 });
+
+describe("PtyManager: marca de atividade", () => {
+  it.skipIf(isWin)("stats traz o instante do último output do shell", async () => {
+    const pty = new PtyManager();
+    managers.push(pty);
+    const { win, events } = fakeWindow();
+    const antes = Date.now();
+    pty.spawn(win, { session_id: "act1", shell: "/bin/sh", shell_args: ["-c", "echo ok; sleep 5"], inherit_env: false });
+
+    await waitFor(() => events.some((e) => e.channel === "pty-output"));
+
+    const last = pty.stats("act1")!.last_output_at!;
+    expect(last).toBeGreaterThanOrEqual(antes);
+    expect(last).toBeLessThanOrEqual(Date.now());
+  });
+
+  it.skipIf(isWin)("sessão que ainda não escreveu vem com last_output_at nulo", async () => {
+    const pty = new PtyManager();
+    managers.push(pty);
+    const { win } = fakeWindow();
+    pty.spawn(win, { session_id: "act2", shell: "/bin/sh", shell_args: ["-c", "sleep 5"], inherit_env: false });
+    expect(pty.stats("act2")!.last_output_at).toBeNull();
+  });
+
+  it.skipIf(isWin)("aviso do próprio app não conta como atividade do agente", async () => {
+    const pty = new PtyManager();
+    managers.push(pty);
+    const { win } = fakeWindow();
+    pty.spawn(win, { session_id: "act3", shell: "/bin/sh", shell_args: ["-c", "sleep 5"], inherit_env: false });
+    pty.notify("act3", "bloqueado");
+    expect(pty.stats("act3")!.last_output_at).toBeNull();
+  });
+});
