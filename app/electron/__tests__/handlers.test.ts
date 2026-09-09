@@ -1,4 +1,5 @@
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -168,7 +169,8 @@ describe("spaces", () => {
 
   it("path_open abre a pasta pedida", async () => {
     await call("path_open", { path: dir });
-    expect(openPath).toHaveBeenCalledWith(realpathSync(dir));
+    // `realpath` assíncrono: no Windows ele expande o nome curto 8.3, o síncrono não.
+    expect(openPath).toHaveBeenCalledWith(await realpath(dir));
   });
 
   // O cwd da sessão vem do OSC 7, que qualquer saída de terminal pode emitir.
