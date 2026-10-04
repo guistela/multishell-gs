@@ -34,7 +34,7 @@ vi.mock("../provider", () => ({
   presets: () => [claude],
   commandLine: (p: any, bypass: boolean) => [p.executable, ...p.args, ...(bypass ? p.bypass_args : [])].join(" "),
   resumeLine: (p: any, bypass: boolean) => [p.executable, ...p.args, ...p.resume_args, ...(bypass ? p.bypass_args : [])].join(" "),
-  normalizeProvider: (p: any) => ({ ...p, resume_args: p.resume_args ?? [] }),
+  normalizeProvider: (p: any) => ({ ...p, name: String(p.name ?? "").trim(), executable: String(p.executable ?? "").trim(), resume_args: p.resume_args ?? [] }),
   slug: (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
 }));
 
@@ -47,6 +47,8 @@ vi.mock("../space", () => ({
     return out;
   },
   spaceRoot: (s: any) => `${spacesRoot}/${s.directory_name}`,
+  realHome: () => "/Users/fulano",
+  dedupePathList: (entries: string[]) => [...new Set(entries.map((e) => e.trim()).filter(Boolean))],
   secretEnvKeys: (space: any, provider: any) => [
     ...(space.custom_env ?? []), ...(provider?.extra_env ?? []),
   ].filter((v: any) => v.is_secret).map((v: any) => v.key),

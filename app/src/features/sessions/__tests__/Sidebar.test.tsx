@@ -197,3 +197,74 @@ describe("Sidebar", () => {
     expect(screen.getByText("Gamma")).toBeInTheDocument();
   });
 });
+
+describe("Sidebar: informação por espaço", () => {
+  it("o cabeçalho do espaço sempre mostra quantos terminais ele tem", () => {
+    render(<Sidebar onOpenSettings={() => {}} />);
+    expect(screen.getByTestId(`space-count-${spaceA.id}`)).toHaveTextContent("2");
+    expect(screen.getByTestId(`space-count-${spaceB.id}`)).toHaveTextContent("1");
+  });
+
+  it("espaço vazio não mostra contador", () => {
+    useAppStore.setState({ sessions: [] });
+    render(<Sidebar onOpenSettings={() => {}} />);
+    expect(screen.queryByTestId(`space-count-${spaceA.id}`)).not.toBeInTheDocument();
+  });
+
+  it("mostra quantos agentes estão trabalhando no espaço", () => {
+    useAppStore.setState({
+      sessions: [
+        { id: "s1", title: "Alpha", space_id: spaceA.id, provider_id: claude.id, bypass: false, cwd: null, harness_running: true, detached: false },
+        { id: "s3", title: "Gamma", space_id: spaceA.id, provider_id: null, bypass: false, cwd: null, harness_running: false, detached: false },
+      ],
+    });
+    markOutput("s1", Date.now());
+    render(<Sidebar onOpenSettings={() => {}} />);
+    expect(screen.getByTestId(`space-working-${spaceA.id}`)).toHaveTextContent("1");
+  });
+
+  it("sem agente trabalhando, o espaço não mostra o indicador", () => {
+    render(<Sidebar onOpenSettings={() => {}} />);
+    expect(screen.queryByTestId(`space-working-${spaceA.id}`)).not.toBeInTheDocument();
+  });
+});
+
+describe("Sidebar: pasta da sessão", () => {
+  it("mostra o nome da pasta abaixo do título", () => {
+    useAppStore.setState({
+      sessions: [{ id: "s1", title: "Claude Code", space_id: spaceA.id, provider_id: claude.id, bypass: false, cwd: "/Users/gs/Projects/multishell-gs", harness_running: false, detached: false }],
+    });
+    render(<Sidebar onOpenSettings={() => {}} />);
+    const linha = screen.getByTestId("session-cwd");
+    expect(linha).toHaveTextContent("multishell-gs");
+    // O caminho inteiro fica no title, para quem precisar conferir.
+    expect(linha).toHaveAttribute("title", "/Users/gs/Projects/multishell-gs");
+  });
+
+  it("sessão sem cwd não mostra linha de pasta", () => {
+    render(<Sidebar onOpenSettings={() => {}} />);
+    expect(screen.queryByTestId("session-cwd")).not.toBeInTheDocument();
+  });
+
+  it("renomeando, a linha da pasta some para o input caber", () => {
+    useAppStore.setState({
+      sessions: [{ id: "s1", title: "Alpha", space_id: spaceA.id, provider_id: null, bypass: false, cwd: "/tmp/x", harness_running: false, detached: false }],
+    });
+    render(<Sidebar onOpenSettings={() => {}} />);
+    fireEvent.doubleClick(screen.getByText("Alpha"));
+    expect(screen.queryByTestId("session-cwd")).not.toBeInTheDocument();
+  });
+});
+
+describe("Sidebar: seção de harnesses", () => {
+  it("recolhe e expande a lista de harnesses", () => {
+    render(<Sidebar onOpenSettings={() => {}} />);
+    const botao = screen.getByTestId("harness-section-toggle");
+    expect(botao).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("sidebar-harness-list")).toBeInTheDocument();
+
+    fireEvent.click(botao);
+    expect(botao).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("sidebar-harness-list")).not.toBeInTheDocument();
+  });
+});

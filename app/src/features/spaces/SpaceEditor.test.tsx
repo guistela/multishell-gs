@@ -78,3 +78,24 @@ describe("space base folder picker", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Salvo");
   });
 });
+
+describe("SpaceEditor: alcançar o botão salvar", () => {
+  beforeEach(() => installBridge());
+
+  it("o rodapé fica grudado no fim do editor, fora do rolamento", () => {
+    render(<SpaceEditor space={space} isNew onSave={() => {}} onCancel={() => {}} />);
+    // A política de segurança é longa: sem isto o botão Salvar sai da área visível.
+    const footer = screen.getByRole("button", { name: "Salvar" }).closest(".settings-footer");
+    expect(footer).toHaveClass("is-sticky");
+  });
+
+  it("espaço novo já abre com o cursor no nome", () => {
+    render(<SpaceEditor space={{ ...space, name: "" }} isNew onSave={() => {}} onCancel={() => {}} />);
+    expect(screen.getByLabelText("Nome")).toHaveFocus();
+  });
+
+  it("editar espaço existente não rouba o foco", () => {
+    render(<SpaceEditor space={space} isNew={false} onSave={() => {}} onCancel={() => {}} />);
+    expect(screen.getByLabelText("Nome")).not.toHaveFocus();
+  });
+});

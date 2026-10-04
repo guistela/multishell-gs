@@ -395,16 +395,6 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .space-collapse-btn .chevron.collapsed {
   transform: rotate(-90deg);
 }
-.space-collapsed-badge {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--fg-muted);
-  background: rgba(255, 255, 255, 0.08);
-  padding: 1px 6px;
-  border-radius: 10px;
-  margin-left: auto;
-  margin-right: 4px;
-}
 
 /* Sidebar Search */
 .sidebar-search {
@@ -1660,3 +1650,131 @@ button.account-logout:hover { border-color: var(--warn); color: var(--warn); }
 }
 .selection-bar-target:hover { background: rgba(255, 255, 255, 0.07); }
 .selection-bar-feedback { font-size: 10.5px; color: var(--warn); }
+
+/* ==========================================================================
+   Sidebar — hierarquia e densidade
+   O espaço é o container, a sessão é o item. A cor do espaço amarra os dois.
+   ========================================================================== */
+
+.space-group { --space-color: var(--accent); }
+
+/* Cabeçalho do espaço: nome legível, contadores à direita, "+" só no hover. */
+.space-group h2 {
+  gap: 7px;
+  min-height: 24px;
+  padding: 0 6px 0 2px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  border-radius: 6px;
+}
+.space-group h2:hover { background: rgba(255, 255, 255, 0.03); }
+.space-group h2 .dot {
+  width: 7px; height: 7px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--space-color) 18%, transparent);
+}
+.space-group h2 .name {
+  padding: 0; border: none; background: none; cursor: pointer;
+  color: inherit; font: inherit; text-align: left;
+}
+.space-group h2 .name:hover { color: #fff; }
+
+.space-count,
+.space-working-badge {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 4px;
+  min-width: 18px; height: 16px; padding: 0 5px;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.space-count { background: rgba(255, 255, 255, 0.07); color: var(--fg-muted); }
+.space-working-badge { background: rgba(61, 220, 132, 0.14); color: #3ddc84; }
+.space-working-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+  animation: agent-pulse 1.2s ease-in-out infinite;
+}
+
+/* O "+" só aparece quando o cursor está no espaço: cabeçalho limpo em repouso. */
+.space-group h2 .space-add {
+  opacity: 0; transition: opacity 0.12s ease;
+  padding: 0 2px; font-size: 15px; line-height: 1;
+}
+.space-group h2:hover .space-add,
+.space-group h2 .space-add:focus-visible { opacity: 1; }
+
+/* Linha-guia ligando as sessões ao espaço. Alinhada ao centro da bolinha. */
+.space-group ul {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+/* Item da sessão: título + pasta, ícone à esquerda, marcadores à direita. */
+.space-group li {
+  gap: 8px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  transition: background 0.12s ease;
+}
+.space-group li .session-labels {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.space-group li .title {
+  font-size: 12px; line-height: 1.25;
+}
+.session-cwd {
+  font-size: 10px; line-height: 1.2;
+  color: var(--fg-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.space-group li.selected .session-cwd { color: #a9b4cc; }
+
+.space-group li.selected {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--space-color) 20%, transparent), transparent 82%);
+  box-shadow: inset 2px 0 var(--space-color);
+}
+.space-group li.selected .title { font-weight: 600; }
+
+.provider-glyph { width: 20px; height: 20px; border-radius: 5px; }
+
+/* Rodapé: harnesses disponíveis, recolhível e separado do resto. */
+.sidebar-section-title {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%;
+  padding: 8px 6px 6px;
+  margin: 0;
+  background: none; border: none;
+  border-top: 1px solid var(--border);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.sidebar-section-title:hover { color: var(--fg); }
+.sidebar-section-title .chevron { transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1); }
+.sidebar-section-title .chevron.collapsed { transform: rotate(-90deg); }
+.sidebar-section-title > span:first-of-type { flex: 1; text-align: left; }
+.sidebar-section-count {
+  min-width: 16px; padding: 0 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.sidebar-harness-list { max-height: 180px; gap: 2px; padding-bottom: 2px; }
+.sidebar-harness-btn {
+  padding: 5px 8px;
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.sidebar-harness-btn:hover {
+  background: rgba(79, 140, 255, 0.12);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.harness-btn-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Espaço recolhido: o contador não some, ele vira o próprio resumo. */
+.space-group.is-collapsed h2 { margin-bottom: 0; }

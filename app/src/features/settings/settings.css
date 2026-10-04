@@ -54,6 +54,21 @@
 .settings-footer { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: auto; padding-top: 8px; }
 .settings-footer .spacer { flex: 1; }
 
+/* O formulário do espaço é longo. Sem isto o botão Salvar sai da área visível
+   e o usuário conclui que não dá para salvar. */
+.settings-editor:has(> .settings-footer.is-sticky) { padding-bottom: 0; }
+.settings-footer.is-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  /* Cobre o padding lateral do editor: o conteúdo passa por baixo, não pelo lado. */
+  margin: auto -18px 0;
+  padding: 10px 18px;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
 .settings-editor button, .settings-list button {
   background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit;
 }

@@ -88,7 +88,7 @@ export default function TerminalTab() {
           {SUPPORTED_LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
       </label>
-      <div className="settings-footer">
+      <div className="settings-footer is-sticky">
         {saved && <span className="settings-saved" role="status">✓ {t("terminal.saved")}</span>}
         {error && <span className="settings-error" role="alert">✕ {error}</span>}
         <span className="spacer" />

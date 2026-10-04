@@ -1,6 +1,6 @@
 import { SessionDragHandle } from "./SessionDragHandle";
 import { ProviderIcon } from "../providers/ProviderIcon";
-import { agentState } from "../terminal/agentActivity";
+import { agentState, useAgentStates } from "../terminal/agentActivity";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
@@ -36,6 +36,14 @@ export function Sidebar({
     }
   });
 
+  const [harnessOpen, setHarnessOpen] = useState(() => {
+    try { return localStorage.getItem("multishell.harnessSectionClosed") !== "true"; } catch { return true; }
+  });
+  const toggleHarnessSection = () => setHarnessOpen((open) => {
+    try { localStorage.setItem("multishell.harnessSectionClosed", String(open)); } catch { /* storage indisponível */ }
+    return !open;
+  });
+
   const toggleSpaceCollapse = (spaceId: string) => {
     setCollapsedSpaces((prev) => {
       const next = new Set(prev);
@@ -47,6 +55,9 @@ export function Sidebar({
       return next;
     });
   };
+
+  // Um tick só para a sidebar inteira: o resumo do espaço usa o mesmo estado dos itens.
+  const agentStates = useAgentStates(sessions);
 
   const q = searchQuery.trim().toLowerCase();
 
@@ -185,6 +196,7 @@ export function Sidebar({
                   key={space.id}
                   space={space}
                   sessions={groupSessions}
+                  workingCount={groupSessions.filter((s) => agentStates[s.id] === "working").length}
                   collapsed={Boolean(!q && collapsedSpaces.has(space.id))}
                   onToggleCollapse={() => toggleSpaceCollapse(space.id)}
                   onAdd={() => addSession({ space_id: space.id, title: nextTitle(sessions) })}
@@ -213,13 +225,27 @@ export function Sidebar({
 
       {!collapsed && (
         <>
-          <div className="sidebar-section-title">{t("sidebar.availableHarnesses")}</div>
-          <div className="sidebar-harness-list">
+          <button
+            type="button"
+            className="sidebar-section-title"
+            data-testid="harness-section-toggle"
+            aria-expanded={harnessOpen}
+            onClick={toggleHarnessSection}
+          >
+            <svg className={`chevron ${harnessOpen ? "" : "collapsed"}`} width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>{t("sidebar.availableHarnesses")}</span>
+            <span className="sidebar-section-count">{providers.length}</span>
+          </button>
+          {harnessOpen && (
+          <div className="sidebar-harness-list" data-testid="sidebar-harness-list">
             {providers.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 className="sidebar-harness-btn"
+                title={t("sidebar.newInSpace", { space: spaces.find((sp) => sp.id === (activeSpace ?? spaces[0]?.id))?.name ?? p.name })}
                 onClick={() => {
                   const targetSpaceId = activeSpace ?? spaces[0]?.id;
                   if (targetSpaceId) {
@@ -234,10 +260,10 @@ export function Sidebar({
                 }}
               >
                 <span className="harness-btn-label"><ProviderIcon provider={p} /> {p.name}</span>
-
               </button>
             ))}
           </div>
+          )}
         </>
       )}
 
@@ -283,6 +309,7 @@ function CollapsedSpaceAvatar({
 function SpaceGroup({
   space,
   sessions,
+  workingCount = 0,
   collapsed = false,
   onToggleCollapse,
   onAdd,
@@ -291,6 +318,8 @@ function SpaceGroup({
 }: {
   space: Space;
   sessions: Session[];
+  /** Quantos agentes deste espaço estão trabalhando agora. */
+  workingCount?: number;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   onAdd: () => void;
@@ -301,7 +330,11 @@ function SpaceGroup({
   const spaceItems = useSpaceMenuItems({ space, onOpenSettings });
 
   return (
-    <section className={`space-group${collapsed ? " is-collapsed" : ""}`} data-testid={`space-${space.id}`}>
+    <section
+      className={`space-group${collapsed ? " is-collapsed" : ""}`}
+      data-testid={`space-${space.id}`}
+      style={{ "--space-color": space.color_hex } as React.CSSProperties}
+    >
       <h2 onContextMenu={(e) => onContextMenu(e, spaceItems)}>
         {onToggleCollapse && (
           <button
@@ -335,14 +368,30 @@ function SpaceGroup({
         <button className="name space-select" onClick={() => useAppStore.getState().selectSpace(space.id)}>
           {space.name}
         </button>
-        {collapsed && sessions.length > 0 && (
-          <span className="space-collapsed-badge" title={t("layout.count", { count: sessions.length })}>
+        {workingCount > 0 && (
+          <span
+            className="space-working-badge"
+            data-testid={`space-working-${space.id}`}
+            title={t("sidebar.spaceWorking", { count: workingCount })}
+            aria-label={t("sidebar.spaceWorking", { count: workingCount })}
+          >
+            <span className="space-working-dot" aria-hidden="true" />
+            {workingCount}
+          </span>
+        )}
+        {sessions.length > 0 && (
+          <span
+            className="space-count"
+            data-testid={`space-count-${space.id}`}
+            title={t("sidebar.spaceTerminals", { count: sessions.length })}
+          >
             {sessions.length}
           </span>
         )}
         <button
-          className="icon"
+          className="icon space-add"
           aria-label={t("sidebar.newInSpace", { space: space.name })}
+          title={t("sidebar.newInSpace", { space: space.name })}
           onClick={() => {
             if (collapsed && onToggleCollapse) onToggleCollapse();
             onAdd();
@@ -365,6 +414,13 @@ function SpaceGroup({
       )}
     </section>
   );
+}
+
+/** Última pasta do caminho. É o que distingue duas sessões com o mesmo título. */
+export function folderName(cwd: string | null | undefined): string | null {
+  if (!cwd) return null;
+  const parts = cwd.split(/[\\/]+/).filter(Boolean);
+  return parts[parts.length - 1] ?? null;
 }
 
 function SessionItem({
@@ -391,6 +447,7 @@ function SessionItem({
     return () => clearInterval(timer);
   }, [session.harness_running]);
   const state = agentState(session.id, session.harness_running);
+  const folder = folderName(session.cwd);
 
   const startRename = () => {
     setDraft(session.title);
@@ -448,7 +505,14 @@ function SessionItem({
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <span className="title">{session.title}</span>
+        <span className="session-labels">
+          <span className="title">{session.title}</span>
+          {folder && (
+            <span className="session-cwd" data-testid="session-cwd" title={session.cwd ?? undefined}>
+              {folder}
+            </span>
+          )}
+        </span>
       )}
       {session.detached && <span className="detached-glyph" title={t("detached.detachedHere")}>⧉</span>}
       {session.bypass && <span className="bypass-dot" data-testid="bypass-dot" title={t("sidebar.bypassOn")} />}

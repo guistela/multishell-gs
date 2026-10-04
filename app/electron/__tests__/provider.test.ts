@@ -132,3 +132,21 @@ describe("provider.normalizeProvider", () => {
     expect(() => normalizeProvider("x")).toThrow();
   });
 });
+
+describe("executável com espaço sobrando", () => {
+  it("normalizeProvider apara o executável", () => {
+    // Colar o caminho no campo costuma trazer espaço junto. Com ele, o shell
+    // procura um comando cujo nome começa com espaço e nada roda.
+    expect(normalizeProvider({ name: "Antigravity", executable: " /Users/gs/.local/bin/agy " }).executable)
+      .toBe("/Users/gs/.local/bin/agy");
+  });
+
+  it("apara também o nome", () => {
+    expect(normalizeProvider({ name: "  Codex  ", executable: "codex" }).name).toBe("Codex");
+  });
+
+  it("a linha de comando sai sem aspas quando o caminho é limpo", () => {
+    const p = normalizeProvider({ name: "Antigravity", executable: " /Users/gs/.local/bin/agy" });
+    expect(commandLine(p, false)).toBe("/Users/gs/.local/bin/agy");
+  });
+});

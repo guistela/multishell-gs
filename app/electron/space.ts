@@ -229,6 +229,27 @@ function processPath(env: NodeJS.ProcessEnv): string {
   return (key && env[key]) || "";
 }
 
+/** Mantém a primeira ocorrência de cada pasta e descarta vazios. */
+export function dedupePathList(entries: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of entries) {
+    const dir = entry.trim();
+    if (dir === "" || seen.has(dir)) continue;
+    seen.add(dir);
+    out.push(dir);
+  }
+  return out;
+}
+
+/**
+ * PATH do espaço. O app herda o PATH de quem o lançou, então reinstalar pelo
+ * próprio Multishell empilhava as mesmas pastas de novo a cada geração.
+ */
+function spacePath(prefix: string[], inherited: string, separator: string): string {
+  return dedupePathList([...prefix, ...inherited.split(separator)]).join(separator);
+}
+
 /** Chaves de segredo declaradas por um espaço + seu provider. Ordem = ordem de aplicação. */
 export function secretEnvKeys(space: Space, provider: Provider | null): string[] {
   const keys: string[] = [];
@@ -281,7 +302,7 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
     env.USERPROFILE = root;
     env.APPDATA = p.join(root, "AppData", "Roaming");
     env.LOCALAPPDATA = p.join(root, "AppData", "Local");
-    env.PATH = processPath(o.processEnv);
+    env.PATH = spacePath([], processPath(o.processEnv), ";");
     shellArgs = ["-NoLogo", "-NoExit", "-File", p.join(root, "multishell-profile.ps1")];
   } else {
     const config = p.join(root, ".config");
@@ -296,7 +317,13 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
     env.DOCKER_CONFIG = p.join(root, ".docker");
     env.KUBECONFIG = p.join(root, ".kube", "config");
     env.NPM_CONFIG_USERCONFIG = p.join(root, ".npmrc");
-    env.PATH = `/opt/homebrew/bin:/usr/local/bin:${processPath(o.processEnv)}`;
+    // `~/.local/bin` do home real: é onde ficam agy, uv e pipx. São ferramentas,
+    // não credenciais, então entram mesmo no espaço isolado.
+    env.PATH = spacePath(
+      ["/opt/homebrew/bin", "/usr/local/bin", p.join(o.realHome, ".local", "bin")],
+      processPath(o.processEnv),
+      ":",
+    );
   }
 
   const secret_keys: string[] = [];
@@ -329,6 +356,9 @@ const OSC7_ZSH = `printf '\\e]7;file://%s%s\\a' "$HOST" "$PWD"`;
 /** Conteúdo do `.zshrc` gerado no espaço. Arquivo é do app; regenerado sempre. */
 export function zshrcContent(space: Space, realHomeDir: string): string {
   let s = "# Gerado pelo Multishell. Edite ~/.zshrc.local no espaço.\n";
+  // `-U` = unique: o zsh descarta duplicata do PATH sozinho, inclusive o que o
+  // ~/.zshrc do usuário reempilha a cada shell.
+  s += "typeset -U path PATH\n";
   s += 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"\n';
   if (space.security.load_user_shell_profile) {
     s += `[[ -f "${realHomeDir}/.zshrc" ]] && source "${realHomeDir}/.zshrc"\n`;

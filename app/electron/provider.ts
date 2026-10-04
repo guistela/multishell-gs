@@ -133,14 +133,16 @@ export function normalizeEnvVars(raw: unknown): EnvVar[] {
 export function normalizeProvider(raw: unknown): Provider {
   if (!isRecord(raw)) throw new Error("provider inválido: esperado objeto");
   const configKey = raw.config_env_key;
-  const executable = str(raw.executable);
+  // Espaço sobrando no executável quebra o comando: o shell procura um nome que
+  // começa com espaço. Acontece sempre que o caminho é colado no campo.
+  const executable = str(raw.executable).trim();
   let resume_args = strList(raw.resume_args);
   if (resume_args.length === 0 && (executable === "agy" || str(raw.name).toLowerCase().includes("antigravity"))) {
     resume_args = ["--continue"];
   }
   return {
     id: str(raw.id, randomUUID()),
-    name: str(raw.name),
+    name: str(raw.name).trim(),
     executable,
     args: strList(raw.args),
     bypass_args: strList(raw.bypass_args),

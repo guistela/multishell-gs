@@ -135,7 +135,7 @@ export default function McpTab() {
         <button type="button" onClick={() => { setDrafts((ds) => [...ds, newDraft()]); setSaved(null); }}>{t("mcp.add")}</button>
       </div>
 
-      <div className="settings-footer">
+      <div className="settings-footer is-sticky">
         {saved && <span className="settings-saved" role="status">✓ {t("mcp.saved", { path: saved.path, count: saved.enabled })}</span>}
         {error && <span className="settings-error" role="alert">✕ {error}</span>}
         <span className="spacer" />

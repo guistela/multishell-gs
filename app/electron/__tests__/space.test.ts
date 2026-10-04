@@ -11,6 +11,7 @@ import {
   materialize,
   normalizeSecurity,
   normalizeSpace,
+  dedupePathList,
   ps1Content,
   secretEnvKeys,
   spaceRoot,
@@ -129,7 +130,7 @@ describe("space.buildSpawnPlan (mac)", () => {
 
   it("PATH sem PATH do processo termina sem lixo", () => {
     const plan = buildSpawnPlan(opts({ processEnv: {} }));
-    expect(plan.env.PATH).toBe("/opt/homebrew/bin:/usr/local/bin:");
+    expect(plan.env.PATH).toBe("/opt/homebrew/bin:/usr/local/bin:/Users/fulano/.local/bin");
   });
 
   it("provider config_env_key aponta para dentro da raiz", () => {
@@ -461,5 +462,39 @@ describe("normalizeSecurity: guardrail", () => {
   it("normalizeSpace não desliga o guardrail em silêncio", () => {
     const s = normalizeSpace({ name: "x", directory_name: "x", security: { block_destructive_commands: true } });
     expect(s.security.block_destructive_commands).toBe(true);
+  });
+});
+
+describe("PATH do espaço", () => {
+  it("dedupePathList mantém a primeira ocorrência e descarta vazios", () => {
+    expect(dedupePathList(["/a", "/b", "/a", "", "/c", "/b"])).toEqual(["/a", "/b", "/c"]);
+  });
+
+  it("o PATH do plano não repete entrada", () => {
+    // O app herda o PATH de quem o lançou. Reinstalar pelo próprio Multishell empilhava cópias.
+    const herdado = "/Users/fulano/.local/bin:/opt/homebrew/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin";
+    const plan = buildSpawnPlan(opts({ processEnv: { PATH: herdado } }));
+    const entradas = plan.env.PATH.split(":");
+    expect(entradas).toEqual([...new Set(entradas)]);
+  });
+
+  it("inclui o ~/.local/bin do home real: é onde ficam agy, uv e pipx", () => {
+    const plan = buildSpawnPlan(opts({ processEnv: { PATH: "/usr/bin:/bin" } }));
+    expect(plan.env.PATH.split(":")).toContain("/Users/fulano/.local/bin");
+  });
+
+  it("homebrew continua antes do ~/.local/bin", () => {
+    const entradas = buildSpawnPlan(opts({ processEnv: { PATH: "/usr/bin" } })).env.PATH.split(":");
+    expect(entradas.indexOf("/opt/homebrew/bin")).toBeLessThan(entradas.indexOf("/Users/fulano/.local/bin"));
+  });
+
+  it("windows também não repete entrada", () => {
+    const plan = buildSpawnPlan(opts({ os: "win32", processEnv: { PATH: "C:\\bin;C:\\bin;C:\\outro" } }));
+    expect(plan.env.PATH).toBe("C:\\bin;C:\\outro");
+  });
+
+  it("o zshrc gerado manda o zsh deduplicar o PATH sozinho", () => {
+    // Sem isto o ~/.zshrc do usuário reempilha as mesmas pastas a cada shell.
+    expect(zshrcContent(spaceFechado(), "/Users/fulano")).toContain("typeset -U path PATH");
   });
 });

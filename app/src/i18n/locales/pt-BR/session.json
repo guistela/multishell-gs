@@ -15,7 +15,11 @@
     "noResults": "Nenhum resultado encontrado",
     "availableHarnesses": "HARNESSES DISPONÍVEIS",
     "agentWorking": "Agente trabalhando",
-    "agentIdle": "Agente parado, esperando você"
+    "agentIdle": "Agente parado, esperando você",
+    "spaceTerminals": "{{count}} terminal neste espaço",
+    "spaceTerminals_plural": "{{count}} terminais neste espaço",
+    "spaceWorking": "{{count}} agente trabalhando",
+    "spaceWorking_plural": "{{count}} agentes trabalhando"
   },
   "bar": {
     "space": "Espaço",

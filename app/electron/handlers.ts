@@ -7,7 +7,7 @@ import { COMMANDS, EVENTS, type Command, type StoreChangedEvent, type WindowRole
 import { Store } from "./store";
 import { PtyManager, defaultShell, type PtySender, type SpawnRequest } from "./pty";
 import { commandLine, normalizeProvider, presets, resumeLine, type Provider } from "./provider";
-import { defaultSpaces, makeDirectoryName, secretEnvKeys, spaceRoot, spawnPlanFor, type Space } from "./space";
+import { dedupePathList, defaultSpaces, makeDirectoryName, realHome, secretEnvKeys, spaceRoot, spawnPlanFor, type Space } from "./space";
 import { secretDelete, secretGetValue, secretSet } from "./secrets";
 import { migrateFromSwift } from "./migration";
 import type { WindowManager } from "./windows";
@@ -16,6 +16,16 @@ import { WriteGuard } from "./write-guard";
 import { readProcessStats } from "./process-memory";
 import { listAuthSessions } from "./auth-sessions";
 import { isValidMcpName, syncSpaceMcpConfig, type McpServerConfig } from "./mcp";
+
+/** PATH dos subprocessos do espaço (gh, git, az). Mesmas pastas do terminal, sem duplicata. */
+function spaceSubprocessPath(): string {
+  return dedupePathList([
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    join(realHome(), ".local", "bin"),
+    ...(process.env.PATH || "").split(":"),
+  ]).join(":");
+}
 
 export const SPACES_STORE = "spaces";
 export const MCP_STORE = "mcp-servers";
@@ -101,7 +111,8 @@ export function createHandlers(deps: HandlerDeps): Handlers {
     return {
       ...base,
       HOME: spaceRoot(space),
-      PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH || ""}`,
+      // Mesmo PATH do terminal do espaço: gh/git/az precisam achar o que o usuário instalou.
+      PATH: spaceSubprocessPath(),
     };
   };
 
@@ -229,9 +240,9 @@ export function createHandlers(deps: HandlerDeps): Handlers {
 
     providers_list: () => loadProviders(),
     provider_save: ({ provider }) => {
-      const p: Provider = { ...(provider as Provider) };
-      if (!p.name?.trim()) throw new Error("nome do provider vazio");
-      if (!p.executable?.trim()) throw new Error("executável do provider vazio");
+      const p: Provider = normalizeProvider(provider);
+      if (!p.name) throw new Error("nome do provider vazio");
+      if (!p.executable) throw new Error("executável do provider vazio");
       p.extra_env = (p.extra_env ?? []).map((v) => (v.is_secret ? { ...v, value: "" } : v));
       const list = loadProviders();
       const pos = list.findIndex((x) => x.id === p.id);

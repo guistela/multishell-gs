@@ -68,7 +68,7 @@ export default function SpaceEditor({ space, isNew, onSave, onDelete, onOpenFold
       <div className="settings-row">
         <label style={{ flex: 1 }}>
           {t("fields.name")}
-          <input type="text" value={draft.name} onChange={(e) => patch({ name: e.target.value })} />
+          <input type="text" autoFocus={isNew} value={draft.name} onChange={(e) => patch({ name: e.target.value })} />
         </label>
         <label>
           {t("fields.color")}
@@ -110,7 +110,7 @@ export default function SpaceEditor({ space, isNew, onSave, onDelete, onOpenFold
         ))}
         {shares && <div className="settings-warn" role="status">{t("security.warning")}</div>}
       </fieldset>
-      <div className="settings-footer">
+      <div className="settings-footer is-sticky">
         {saved && <span className="settings-saved" role="status">✓ {t("saved")}</span>}
         {error && <span className="settings-error" role="alert">✕ {error}</span>}
         <span className="spacer" />

@@ -127,7 +127,7 @@ export default function ProviderEditor({ provider, onSave, onDelete, onCancel }:
           <span className="k">{t("preview.resume")}</span><code data-testid="preview-resume">{preview.resume}</code>
         </div>
       </div>
-      <div className="settings-footer">
+      <div className="settings-footer is-sticky">
         {saved && <span className="settings-saved" role="status">✓ {t("saved")}</span>}
         {error && <span className="settings-error" role="alert">✕ {error}</span>}
         <span className="spacer" />
