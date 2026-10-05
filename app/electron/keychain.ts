@@ -22,9 +22,10 @@ export interface KeychainDeps {
   chmod: (p: string, mode: number) => Promise<void>;
 }
 
-/** Onde o macOS procura o keychain do usuário, dado o HOME do espaço. */
+/** Onde o macOS procura o keychain do usuário, dado o HOME do espaço.
+ *  `posix` fixo: só o macOS chega aqui, e assim o teste vale em qualquer runner. */
 export function spaceKeychainPath(root: string): string {
-  return path.join(root, "Library", "Keychains", "login.keychain-db");
+  return path.posix.join(root, "Library", "Keychains", "login.keychain-db");
 }
 
 export type KeychainResult = "created" | "kept" | "skipped";
@@ -51,7 +52,7 @@ export async function ensureSpaceKeychain(root: string, deps: KeychainDeps = rea
   const file = spaceKeychainPath(root);
   try {
     if (await deps.exists(file)) return "kept";
-    await deps.mkdir(path.dirname(file));
+    await deps.mkdir(path.posix.dirname(file));
     await deps.run("security", ["create-keychain", "-p", "", file]);
     // Sem argumento de lock: nada de timeout de 300s nem lock ao dormir.
     await deps.run("security", ["set-keychain-settings", file]);
