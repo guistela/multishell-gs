@@ -27,7 +27,7 @@
     "load_user_shell_profile": "Carregar perfil do shell do usuário",
     "load_user_shell_profile_hint": "Executa o ~/.zshrc do usuário dentro do espaço.",
     "share_keychain": "Compartilhar Keychain",
-    "share_keychain_hint": "O espaço lê as senhas salvas do usuário.",
+    "share_keychain_hint": "O espaço lê as senhas salvas do usuário. Desligado, o espaço ganha um keychain próprio.",
     "share_ssh": "Compartilhar SSH",
     "share_ssh_hint": "O espaço usa as chaves de ~/.ssh do usuário.",
     "share_git_config": "Compartilhar config do Git",

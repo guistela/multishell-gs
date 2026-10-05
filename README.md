@@ -58,6 +58,7 @@ flowchart TD
 ### Isolamento
 - `HOME` próprio por espaço, com `XDG_*` e as pastas de configuração de cada provider dentro dele.
 - Compartilhamento opcional e explícito de Keychain, SSH, `.gitconfig`, variáveis do processo e perfil do shell. A barra de status mostra o que está aberto.
+- Sem compartilhar o Keychain, o espaço ganha um keychain próprio em `~/.multishell/profiles/<espaço>/Library/Keychains`. Credencial de um espaço não aparece no outro, e o keychain real do usuário não é tocado.
 - Segredos no chaveiro do sistema via `@napi-rs/keyring` — nunca no JSON de configuração.
 - Locale UTF-8 garantida no espaço, para acento não virar lixo ao copiar do terminal.
 

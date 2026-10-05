@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { ensureSpaceKeychain } from "./keychain.js";
 import { normalizeEnvVars, slug, type EnvVar, type Provider } from "./provider.js";
 
 export const PERSONAL_ID = "00000000-0000-0000-0000-000000000001";
@@ -482,7 +483,11 @@ export async function materialize(space: Space, provider: Provider | null, realH
 
   const sec = space.security;
   if (osName === "darwin") {
-    await syncSymlink(path.join(root, "Library", "Keychains"), path.join(realHomeDir, "Library", "Keychains"), sec.share_keychain);
+    const keychains = path.join(root, "Library", "Keychains");
+    await syncSymlink(keychains, path.join(realHomeDir, "Library", "Keychains"), sec.share_keychain);
+    // Sem symlink e sem keychain próprio, o macOS abre "A keychain cannot be
+    // found to store ..." para qualquer CLI que guarde credencial no espaço.
+    if (!sec.share_keychain) await ensureSpaceKeychain(root);
   }
   await syncSymlink(path.join(root, ".ssh"), path.join(realHomeDir, ".ssh"), sec.share_ssh);
   await syncSymlink(path.join(root, ".gitconfig"), path.join(realHomeDir, ".gitconfig"), sec.share_git_config);

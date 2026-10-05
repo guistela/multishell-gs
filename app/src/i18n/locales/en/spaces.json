@@ -27,7 +27,7 @@
     "load_user_shell_profile": "Load user shell profile",
     "load_user_shell_profile_hint": "Runs the user's ~/.zshrc inside the space.",
     "share_keychain": "Share Keychain",
-    "share_keychain_hint": "The space reads the user's saved passwords.",
+    "share_keychain_hint": "The space reads the user's saved passwords. When off, the space gets its own keychain.",
     "share_ssh": "Share SSH",
     "share_ssh_hint": "The space uses the user's ~/.ssh keys.",
     "share_git_config": "Share Git config",

@@ -331,7 +331,11 @@ describe("space.materialize", () => {
     s.security.share_keychain = false;
     s.security.share_ssh = false;
     await materialize(s, null, realHome, "darwin");
-    expect(fs.existsSync(path.join(root, "Library", "Keychains"))).toBe(false);
+    // O symlink do keychain sai e entra um keychain próprio do espaço: sem ele
+    // o macOS abre o diálogo "Keychain Not Found" na primeira credencial.
+    const keychains = path.join(root, "Library", "Keychains");
+    expect(fs.lstatSync(keychains).isSymbolicLink()).toBe(false);
+    expect(fs.statSync(keychains).isDirectory()).toBe(true);
     expect(() => fs.lstatSync(path.join(root, ".ssh"))).toThrow();
     expect(fs.statSync(path.join(realHome, ".ssh")).isDirectory(), "pasta real não pode ser apagada").toBe(true);
   });
@@ -496,5 +500,35 @@ describe("PATH do espaço", () => {
   it("o zshrc gerado manda o zsh deduplicar o PATH sozinho", () => {
     // Sem isto o ~/.zshrc do usuário reempilha as mesmas pastas a cada shell.
     expect(zshrcContent(spaceFechado(), "/Users/fulano")).toContain("typeset -U path PATH");
+  });
+});
+
+describe("materialize: keychain do espaço", () => {
+  let home: string;
+  beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), "multishell-kc-")); });
+  afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const espaco = (share: boolean): Space => {
+    const s = spaceFechado();
+    s.security = { ...s.security, share_keychain: share };
+    return s;
+  };
+
+  it("espaço isolado ganha a pasta do keychain próprio", async () => {
+    await materialize(espaco(false), null, home, "darwin");
+    const dir = path.join(home, ".multishell", "profiles", "cliente-x", "Library", "Keychains");
+    expect(fs.existsSync(dir)).toBe(true);
+  });
+
+  it("espaço que compartilha continua com o symlink, sem keychain próprio", async () => {
+    fs.mkdirSync(path.join(home, "Library", "Keychains"), { recursive: true });
+    await materialize(espaco(true), null, home, "darwin");
+    const link = path.join(home, ".multishell", "profiles", "cliente-x", "Library", "Keychains");
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+  });
+
+  it("no windows não mexe em keychain", async () => {
+    await materialize(espaco(false), null, home, "win32");
+    expect(fs.existsSync(path.join(home, ".multishell", "profiles", "cliente-x", "Library"))).toBe(false);
   });
 });
