@@ -1579,7 +1579,14 @@ button.account-logout {
   padding: 3px 10px;
   cursor: pointer;
 }
-button.account-login:hover { border-color: var(--accent); color: var(--accent); }
+/* Conectar é a ação principal da linha desconectada: preenchido, não fantasma. */
+button.account-login {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 550;
+}
+button.account-login:hover { filter: brightness(1.12); }
 button.account-logout { color: var(--fg-muted); }
 button.account-logout:hover { border-color: var(--warn); color: var(--warn); }
 .accounts-missing-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }

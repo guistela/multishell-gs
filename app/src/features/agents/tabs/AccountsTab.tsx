@@ -14,6 +14,31 @@ export function pickLoginTarget(inSpace: Session[], selectedSessionId: string | 
   return livres.find((s) => s.id === selectedSessionId) ?? livres[0] ?? null;
 }
 
+/** Tentativas de escrita num terminal recém-criado, enquanto o PTY sobe. */
+const WRITE_ATTEMPTS = 25;
+const WRITE_RETRY_MS = 80;
+
+/**
+ * Escreve no terminal assim que o PTY dele existir.
+ * Terminal recém-criado só ganha PTY quando o componente monta e chama `pty_spawn`.
+ * Até lá a escrita é recusada, então insiste em vez de perder o comando.
+ */
+export async function writeWhenReady(
+  sessionId: string,
+  text: string,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<boolean> {
+  for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt++) {
+    try {
+      await pty.write(sessionId, text);
+      return true;
+    } catch {
+      await sleep(WRITE_RETRY_MS);
+    }
+  }
+  return false;
+}
+
 /**
  * Sessões de login das CLIs dentro do espaço.
  * A consulta roda as CLIs de verdade e demora segundos, então só acontece ao abrir,
@@ -56,25 +81,30 @@ export function AccountsTab() {
   const semSessao = items.filter((i) => i.installed && !i.logged_in);
   const naoInstaladas = items.filter((i) => !i.installed);
 
-  /** Digita o comando no terminal escolhido e foca aquele terminal. */
+  /**
+   * Digita o comando num terminal sem agente do espaço e foca aquele terminal.
+   * Sem terminal livre, abre um: conectar não pode depender de o usuário preparar o espaço antes.
+   */
   const runInTerminal = async (command: string, cliName: string) => {
+    if (!selectedSpaceId) return;
     setError(null);
     setMessage(null);
-    if (inSpace.length === 0) {
-      setError("Este espaço não tem nenhum terminal aberto. Abra um terminal para entrar ou sair das CLIs.");
-      return;
-    }
-    const target = pickLoginTarget(inSpace, selectedSessionId);
-    if (!target) {
-      setError("Todos os terminais deste espaço estão com um agente rodando. Abra um terminal comum: num agente o comando viraria texto do prompt.");
-      return;
-    }
-    await pty.write(target.id, command + "\n").catch(() => {});
+    const existente = pickLoginTarget(inSpace, selectedSessionId);
+    const target = existente ?? useAppStore.getState().addSession({ space_id: selectedSpaceId, title: `Login ${cliName}` });
     useAppStore.getState().selectSession(target.id);
-    setMessage(`Comando de ${cliName} enviado para "${target.title}". Continue no terminal.`);
+    const escreveu = await writeWhenReady(target.id, command + "\n");
+    if (!escreveu) {
+      setError(`O terminal "${target.title}" não respondeu a tempo. Tente de novo ou digite "${command}" nele.`);
+      return;
+    }
+    setMessage(
+      existente
+        ? `Comando de ${cliName} enviado para "${target.title}". Continue no terminal.`
+        : `Abri o terminal "${target.title}" e mandei o comando de ${cliName}. Continue lá.`,
+    );
   };
 
-  const entrar = (item: AuthSessionStatus) => void runInTerminal(item.login_command, item.name);
+  const conectar = (item: AuthSessionStatus) => void runInTerminal(item.login_command, item.name);
 
   const sair = (item: AuthSessionStatus) => {
     if (!item.logout_command) return;
@@ -100,8 +130,8 @@ export function AccountsTab() {
       </p>
 
       {inSpace.length === 0 && (
-        <p className="accounts-hint warn" data-testid="accounts-no-terminal">
-          Abra um terminal neste espaço para entrar ou sair das CLIs. Os comandos são digitados num terminal.
+        <p className="accounts-hint" data-testid="accounts-no-terminal">
+          Este espaço não tem terminal aberto. Conectar abre um automaticamente.
         </p>
       )}
 
@@ -124,7 +154,7 @@ export function AccountsTab() {
         <section className="accounts-section" data-testid="accounts-active">
           <h4 className="accounts-section-title">Sessões ativas</h4>
           {ativas.map((item) => (
-            <AccountRow key={item.id} item={item} onEnter={entrar} onExit={sair} />
+            <AccountRow key={item.id} item={item} onConnect={conectar} onExit={sair} />
           ))}
         </section>
       )}
@@ -133,7 +163,7 @@ export function AccountsTab() {
         <section className="accounts-section" data-testid="accounts-logged-out">
           <h4 className="accounts-section-title">Sem sessão neste espaço</h4>
           {semSessao.map((item) => (
-            <AccountRow key={item.id} item={item} onEnter={entrar} onExit={sair} />
+            <AccountRow key={item.id} item={item} onConnect={conectar} onExit={sair} />
           ))}
         </section>
       )}
@@ -157,11 +187,11 @@ export function AccountsTab() {
 
 function AccountRow({
   item,
-  onEnter,
+  onConnect,
   onExit,
 }: {
   item: AuthSessionStatus;
-  onEnter: (item: AuthSessionStatus) => void;
+  onConnect: (item: AuthSessionStatus) => void;
   onExit: (item: AuthSessionStatus) => void;
 }) {
   return (
@@ -185,11 +215,12 @@ function AccountRow({
           <button
             type="button"
             className="account-login"
-            aria-label={`Entrar em ${item.name}`}
-            title={`Digita "${item.login_command}" no terminal do espaço`}
-            onClick={() => onEnter(item)}
+            data-testid={`account-connect-${item.id}`}
+            aria-label={`Conectar ${item.name} neste espaço`}
+            title={`Roda "${item.login_command}" num terminal deste espaço`}
+            onClick={() => onConnect(item)}
           >
-            Entrar
+            Conectar
           </button>
         )}
         {item.logged_in && item.logout_command && (

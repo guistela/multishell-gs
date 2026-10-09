@@ -6,8 +6,8 @@ import { useAppStore } from "../../../store";
 import type { AuthSessionStatus } from "../../../api";
 import type { Provider, Session } from "../../../types";
 
-const writeMock = vi.fn(() => Promise.resolve());
-vi.mock("../../terminal/pty", () => ({ pty: { write: (...args: unknown[]) => writeMock(...(args as [])), kill: () => Promise.resolve() } }));
+const writeMock = vi.fn((_sessionId: string, _text: string) => Promise.resolve());
+vi.mock("../../terminal/pty", () => ({ pty: { write: (id: string, text: string) => writeMock(id, text), kill: () => Promise.resolve() } }));
 
 import { AccountsTab } from "../WorkspaceTabs";
 
@@ -147,7 +147,7 @@ describe("Contas: sessões de CLI do espaço", () => {
     render(<AccountsTab />);
     await screen.findByText("Google Cloud CLI");
 
-    fireEvent.click(screen.getByRole("button", { name: /Entrar em Google Cloud CLI/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Conectar Google Cloud CLI/i }));
 
     await waitFor(() => expect(writeMock).toHaveBeenCalled());
     // Prefere o shell puro mesmo com o terminal do agente selecionado.
@@ -155,25 +155,55 @@ describe("Contas: sessões de CLI do espaço", () => {
     expect(useAppStore.getState().selectedSessionId).toBe("sh");
   });
 
-  it("avisa quando só há terminais com agente rodando, sem escrever no agente", async () => {
+  it("só há terminal com agente: abre um shell novo em vez de escrever no agente", async () => {
     useAppStore.setState({ sessions: [agente, outroEspaco], selectedSessionId: "ag" });
     render(<AccountsTab />);
     await screen.findByText("Google Cloud CLI");
 
-    fireEvent.click(screen.getByRole("button", { name: /Entrar em Google Cloud CLI/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Conectar Google Cloud CLI/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/terminal comum|sem agente/i);
-    expect(writeMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    const novo = useAppStore.getState().sessions.find((s) => s.space_id === spaceA.id && !s.harness_running);
+    expect(novo).toBeDefined();
+    // O agente nunca recebe o comando: lá ele viraria texto do prompt.
+    expect(writeMock.mock.calls.every((call) => call[0] !== "ag")).toBe(true);
+    expect(writeMock).toHaveBeenCalledWith(novo!.id, "gcloud auth login\n");
+    expect(useAppStore.getState().selectedSessionId).toBe(novo!.id);
   });
 
-  it("explica que é preciso abrir um terminal quando o espaço não tem nenhum", async () => {
+  it("espaço sem nenhum terminal: o Conectar abre um e manda o comando", async () => {
     useAppStore.setState({ sessions: [outroEspaco], selectedSessionId: null, selectedSpaceId: spaceA.id });
     render(<AccountsTab />);
     await screen.findByText("Google Cloud CLI");
 
-    expect(screen.getByTestId("accounts-no-terminal")).toHaveTextContent(/abr[ia]/i);
-    fireEvent.click(screen.getByRole("button", { name: /Entrar em Google Cloud CLI/i }));
-    expect(writeMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Conectar Google Cloud CLI/i }));
+
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    const novo = useAppStore.getState().sessions.find((s) => s.space_id === spaceA.id);
+    expect(writeMock).toHaveBeenCalledWith(novo!.id, "gcloud auth login\n");
+  });
+
+  it("o terminal novo nasce com nome que diz a que veio", async () => {
+    useAppStore.setState({ sessions: [outroEspaco], selectedSessionId: null, selectedSpaceId: spaceA.id });
+    render(<AccountsTab />);
+    await screen.findByText("Google Cloud CLI");
+
+    fireEvent.click(screen.getByRole("button", { name: /Conectar Google Cloud CLI/i }));
+
+    await waitFor(() => expect(writeMock).toHaveBeenCalled());
+    expect(useAppStore.getState().sessions.find((s) => s.space_id === spaceA.id)!.title).toBe("Login Google Cloud CLI");
+  });
+
+  it("o PTY demora a subir: tenta de novo até o terminal novo aceitar", async () => {
+    useAppStore.setState({ sessions: [outroEspaco], selectedSessionId: null, selectedSpaceId: spaceA.id });
+    writeMock.mockRejectedValueOnce(new Error("sessão não existe"));
+    render(<AccountsTab />);
+    await screen.findByText("Google Cloud CLI");
+
+    fireEvent.click(screen.getByRole("button", { name: /Conectar Google Cloud CLI/i }));
+
+    await waitFor(() => expect(writeMock.mock.calls.length).toBeGreaterThan(1));
+    expect(await screen.findByRole("status")).toHaveTextContent(/Google Cloud CLI/);
   });
 
   it("pede confirmação antes de sair e respeita o cancelamento", async () => {
