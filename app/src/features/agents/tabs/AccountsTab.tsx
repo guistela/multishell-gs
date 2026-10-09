@@ -211,18 +211,17 @@ function AccountRow({
         </span>
       </div>
       <div className="account-actions">
-        {!item.logged_in && (
-          <button
-            type="button"
-            className="account-login"
-            data-testid={`account-connect-${item.id}`}
-            aria-label={`Conectar ${item.name} neste espaço`}
-            title={`Roda "${item.login_command}" num terminal deste espaço`}
-            onClick={() => onConnect(item)}
-          >
-            Conectar
-          </button>
-        )}
+        {/* Também com sessão ativa: o login do CLI troca de conta sem precisar sair antes. */}
+        <button
+          type="button"
+          className={`account-login${item.logged_in ? "" : " primary"}`}
+          data-testid={`account-connect-${item.id}`}
+          aria-label={item.logged_in ? `Trocar a conta de ${item.name} neste espaço` : `Conectar ${item.name} neste espaço`}
+          title={`Roda "${item.login_command}" num terminal deste espaço`}
+          onClick={() => onConnect(item)}
+        >
+          Conectar
+        </button>
         {item.logged_in && item.logout_command && (
           <button
             type="button"

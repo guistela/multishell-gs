@@ -238,3 +238,51 @@ describe("Contas: sessões de CLI do espaço", () => {
     expect(document.querySelectorAll("input[type=password]")).toHaveLength(0);
   });
 });
+
+describe("Contas: conectar em linha que já tem sessão", () => {
+  it("linha conectada oferece Conectar e Sair", async () => {
+    render(<AccountsTab />);
+    await screen.findByText("GitHub CLI");
+
+    const linha = within(screen.getByTestId("account-row-gh"));
+    expect(linha.getByTestId("account-connect-gh")).toBeInTheDocument();
+    expect(linha.getByRole("button", { name: /Sair de GitHub CLI/i })).toBeInTheDocument();
+  });
+
+  it("o rótulo diz que ali se troca de conta, não que falta conectar", async () => {
+    render(<AccountsTab />);
+    await screen.findByText("GitHub CLI");
+
+    const botao = screen.getByTestId("account-connect-gh");
+    expect(botao).toHaveAccessibleName(/trocar a conta.*GitHub CLI/i);
+    expect(botao).toHaveAttribute("title", expect.stringContaining("gh auth login"));
+  });
+
+  it("trocar de conta roda o login no terminal, sem pedir confirmação", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<AccountsTab />);
+    await screen.findByText("GitHub CLI");
+
+    fireEvent.click(screen.getByTestId("account-connect-gh"));
+
+    await waitFor(() => expect(writeMock).toHaveBeenCalledWith("sh", "gh auth login\n"));
+    // Trocar de conta não derruba a sessão atual: o CLI pergunta no terminal.
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("sem sessão o botão é a ação principal; com sessão ele é secundário", async () => {
+    render(<AccountsTab />);
+    await screen.findByText("Google Cloud CLI");
+
+    expect(screen.getByTestId("account-connect-gcloud")).toHaveClass("primary");
+    expect(screen.getByTestId("account-connect-gh")).not.toHaveClass("primary");
+  });
+
+  it("CLI fora do PATH do espaço continua sem Conectar: o comando não existiria", async () => {
+    render(<AccountsTab />);
+    await screen.findByText("AWS CLI");
+
+    expect(screen.queryByTestId("account-connect-aws")).toBeNull();
+  });
+});
