@@ -7,6 +7,8 @@ import { useAppStore } from "../../store";
 import { pty } from "../terminal/pty";
 import type { Session } from "../../types";
 import { useSessionMenuItems } from "./useSessionMenuItems";
+import { openSessionFolder, openSessionInEditor, sessionEditorPath } from "./openLocation";
+import { pasteFromClipboard } from "./pasteFromClipboard";
 
 export function SessionBar({
   session,
@@ -90,6 +92,34 @@ export function SessionBar({
         ▶ {t("bar.start")}
       </button>
       <span className="spacer" />
+      <button
+        className="icon"
+        aria-label={t("bar.pasteClipboard")}
+        title={t("bar.pasteClipboard")}
+        onClick={() => void pasteFromClipboard(session.id)}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
+        🖼️
+      </button>
+      <button
+        className="icon"
+        aria-label={t("bar.openFolder")}
+        title={t("bar.openFolder")}
+        onClick={() => openSessionFolder(session)}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
+        📂
+      </button>
+      <button
+        className="icon"
+        aria-label={t("bar.openEditor")}
+        title={t("bar.openEditor")}
+        disabled={!sessionEditorPath(session, spaces)}
+        onClick={() => openSessionInEditor(session, spaces)}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
+        ⌨️
+      </button>
       <button
         onDoubleClick={(e) => e.stopPropagation()}
         onClick={() => void (detachedWindow || session.detached

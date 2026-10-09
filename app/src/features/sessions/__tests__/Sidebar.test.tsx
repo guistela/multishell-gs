@@ -104,6 +104,7 @@ describe("Sidebar", () => {
     render(<Sidebar onOpenSettings={() => {}} />);
     fireEvent.contextMenu(screen.getByText("Pessoal"));
     expect(screen.getByText("Novo terminal neste espaço")).toBeInTheDocument();
+    expect(screen.getByText("Novo terminal em pasta…")).toBeInTheDocument();
     expect(screen.getByText("Abrir pasta do espaço")).toBeInTheDocument();
     expect(screen.getByText("Configurações do espaço...")).toBeInTheDocument();
   });

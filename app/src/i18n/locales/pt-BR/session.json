@@ -28,7 +28,10 @@
     "bypass": "Bypass",
     "bypassNextStart": "Aplica no próximo início",
     "start": "Iniciar harness",
-    "close": "Fechar sessão"
+    "close": "Fechar sessão",
+    "openFolder": "Abrir pasta",
+    "openEditor": "Abrir no VS Code",
+    "pasteClipboard": "Colar do clipboard"
   },
   "exit": {
     "banner": "Shell encerrado (código {{code}})",
@@ -84,6 +87,7 @@
     "emptyTitle": "Pronto quando você estiver",
     "emptyDescription": "Crie um terminal neste espaço para começar. Suas configurações e credenciais já estão organizadas aqui.",
     "createTerminal": "Criar terminal",
+    "createTerminalInFolder": "Criar terminal em pasta…",
     "noSpacesTitle": "Seu próximo projeto começa aqui",
     "noSpacesDescription": "Configure um espaço para organizar seus terminais e suas contas.",
     "configureSpaces": "Configurar espaços",
@@ -92,6 +96,7 @@
   "menu": {
     "newSession": "Nova sessão",
     "newInSpace": "Novo terminal neste espaço",
+    "newInFolder": "Novo terminal em pasta…",
     "rename": "Renomear",
     "duplicate": "Duplicar terminal",
     "restart": "Reiniciar terminal",
@@ -101,6 +106,7 @@
     "selectAll": "Selecionar tudo",
     "copyCwd": "Copiar caminho da pasta",
     "openFolder": "Abrir pasta no gerenciador de arquivos",
+    "openEditor": "Abrir no VS Code",
     "openSpaceFolder": "Abrir pasta do espaço",
     "spaceSettings": "Configurações do espaço...",
     "terminalSettings": "Configurações do terminal...",
@@ -116,7 +122,8 @@
     "layout": "Visualização",
     "theme": "Tema deste terminal",
     "themeDefault": "Padrão do app",
-    "kanbanTask": "Nova tarefa no Kanban com a seleção"
+    "kanbanTask": "Nova tarefa no Kanban com a seleção",
+    "pasteClipboard": "Colar do clipboard (imagem ou texto)"
   },
   "search": {
     "placeholder": "Buscar terminais e espaços...",

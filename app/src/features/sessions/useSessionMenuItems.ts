@@ -6,6 +6,8 @@ import type { Session } from "../../types";
 import { pty } from "../terminal/pty";
 import { THEME_LABELS, THEME_NAMES } from "../terminal/themes";
 import { handoffMenuItems } from "../agents/handoffMenu";
+import { openSessionFolder, openSessionInEditor, sessionEditorPath } from "./openLocation";
+import { pasteFromClipboard } from "./pasteFromClipboard";
 
 interface Props {
   session: Session;
@@ -41,13 +43,6 @@ export function useSessionMenuItems({ session, onRename, onOpenSettings }: Props
     }
   };
 
-  const openFolder = () => {
-    if (session.cwd) {
-      void api.pathOpen(session.cwd).catch(() => void api.spaceOpenFolder(session.space_id));
-    } else {
-      void api.spaceOpenFolder(session.space_id);
-    }
-  };
 
   const clearScreen = () => {
     void pty.write(session.id, "\x0c");
@@ -131,6 +126,12 @@ export function useSessionMenuItems({ session, onRename, onOpenSettings }: Props
       onClick: clearScreen,
     },
     {
+      id: "paste-clipboard",
+      label: t("session:menu.pasteClipboard"),
+      icon: "🖼️",
+      onClick: () => void pasteFromClipboard(session.id),
+    },
+    {
       id: "copy-cwd",
       label: t("session:menu.copyCwd"),
       icon: "📋",
@@ -141,7 +142,14 @@ export function useSessionMenuItems({ session, onRename, onOpenSettings }: Props
       id: "open-folder",
       label: t("session:menu.openFolder"),
       icon: "📂",
-      onClick: openFolder,
+      onClick: () => openSessionFolder(session),
+    },
+    {
+      id: "open-editor",
+      label: t("session:menu.openEditor"),
+      icon: "⌨️",
+      disabled: !sessionEditorPath(session, spaces),
+      onClick: () => openSessionInEditor(session, spaces),
     },
     { separator: true },
     {

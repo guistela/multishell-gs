@@ -1,5 +1,5 @@
 // Ponte renderer ⇄ main. Só o que o contrato expõe em `window.multishell`.
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import {
   EVENTS,
   type PtyExitEvent,
@@ -20,6 +20,8 @@ export interface MultishellBridge {
   /** Fase 8: outra janela fez `store_set(name)`; recarregue esse store. */
   onStoreChanged(cb: (ev: StoreChangedEvent) => void): () => void;
   onSessionDrag(cb: (ev: SessionDragEvent | null) => void): () => void;
+  /** Caminho no disco de um File arrastado. "" quando não existe (ex.: imagem vinda do navegador). */
+  pathForFile(file: File): string;
   platform: "darwin" | "win32" | "linux";
 }
 
@@ -63,6 +65,10 @@ const bridge: MultishellBridge = {
     const listener = (_e: IpcRendererEvent, payload: SessionDragEvent | null) => cb(payload);
     ipcRenderer.on(EVENTS.sessionDrag, listener);
     return () => ipcRenderer.removeListener(EVENTS.sessionDrag, listener);
+  },
+  // Desde o Electron 32 o File não tem mais `.path`: o caminho só sai pelo webUtils, no preload.
+  pathForFile: (file) => {
+    try { return webUtils.getPathForFile(file); } catch { return ""; }
   },
   platform: process.platform as MultishellBridge["platform"],
 };

@@ -23,6 +23,8 @@ export interface MultishellBridge {
   /** Outra janela fez store_set(name). */
   onStoreChanged(cb: (e: StoreChanged) => void): () => void;
   onSessionDrag(cb: (ev: SessionDrag | null) => void): () => void;
+  /** Caminho no disco de um File arrastado. "" quando não existe (ex.: imagem vinda do navegador). */
+  pathForFile(file: File): string;
   platform: "darwin" | "win32" | "linux";
 }
 

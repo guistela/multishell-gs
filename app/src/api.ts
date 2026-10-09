@@ -12,6 +12,11 @@ export const api = {
   spaceDelete: (spaceId: string) => invoke<void>("space_delete", { spaceId }),
   spaceOpenFolder: (spaceId: string) => invoke<void>("space_open_folder", { spaceId }),
   pathOpen: (path: string) => invoke<void>("path_open", { path }),
+  pathOpenEditor: (path: string) => invoke<void>("path_open_editor", { path }),
+  /** Salva a imagem do clipboard como PNG e devolve o caminho. Null quando não há imagem. */
+  clipboardImageSave: () => invoke<string | null>("clipboard_image_save"),
+  /** Grava bytes de imagem sem caminho no disco (arrastada do navegador). Devolve o caminho. */
+  imageSave: (data: Uint8Array, mime: string) => invoke<string | null>("image_save", { data, mime }),
   spaceSpawnPlan: (spaceId: string, providerId: string | null, cwd: string | null) =>
     invoke<SpawnPlan>("space_spawn_plan", { spaceId, providerId, cwd }),
 

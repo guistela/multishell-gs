@@ -67,6 +67,15 @@ describe("workspace layouts", () => {
     expect(state.sessions.find((s) => s.id === state.selectedSessionId)?.space_id).toBe(spaceB.id);
   });
 
+  it("+ Terminal em pasta abre o seletor e cria o terminal na pasta escolhida", async () => {
+    invokeMock.mockImplementation(async (cmd: string) => (cmd === "directory_pick" ? "/Users/gs/app" : undefined));
+    render(<Workspace />);
+    fireEvent.click(screen.getByRole("button", { name: "+ Terminal em pasta" }));
+    await waitFor(() => expect(useAppStore.getState().sessions).toHaveLength(4));
+    const state = useAppStore.getState();
+    expect(state.sessions.find((s) => s.id === state.selectedSessionId)).toMatchObject({ space_id: spaceA.id, cwd: "/Users/gs/app", title: "app" });
+  });
+
   it("permite fechar terminal diretamente pelo botão do tile mantendo o espaço atual", () => {
     render(<Workspace />);
     // Alpha está visível no modo single do spaceA

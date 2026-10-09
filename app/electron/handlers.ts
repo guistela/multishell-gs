@@ -1,6 +1,6 @@
 // Handlers dos commands do contrato. `createHandlers` é puro (testável sem electron);
 // `registerHandlers` liga cada um em `ipcMain.handle`.
-import { ipcMain, shell, dialog, BrowserWindow, type WebContents } from "electron";
+import { ipcMain, shell, dialog, clipboard, BrowserWindow, type WebContents } from "electron";
 import { isAbsolute, join } from "node:path";
 import { mkdirSync, statSync } from "node:fs";
 import { COMMANDS, EVENTS, type Command, type StoreChangedEvent, type WindowRole } from "./ipc";
@@ -13,6 +13,8 @@ import { migrateFromSwift } from "./migration";
 import type { WindowManager } from "./windows";
 import { SpaceSnapshotManager, assertWorkDir, collectGitChangedFiles } from "./snapshot";
 import { WriteGuard } from "./write-guard";
+import { openInEditor } from "./editor";
+import { saveClipboardImage } from "./clipboard-image";
 import { readProcessStats } from "./process-memory";
 import { listAuthSessions } from "./auth-sessions";
 import { isValidMcpName, syncSpaceMcpConfig, type McpServerConfig } from "./mcp";
@@ -42,6 +44,10 @@ export interface HandlerDeps {
   readMemory?: (roots: number[]) => Promise<{ memory: Record<number, number>; cpu: Record<number, number> }>;
   /** shell.openPath. Injetável para teste. */
   openPath: (path: string) => Promise<string>;
+  /** Abre a pasta no VS Code. Mesmo contrato do openPath. Padrão: `openInEditor`. */
+  openEditor?: (dir: string) => Promise<string>;
+  /** PNG da imagem no clipboard, ou null sem imagem. Padrão: `clipboard.readImage`. Injetável para teste. */
+  readClipboardImage?: () => Promise<Uint8Array | null>;
   /** Janelas (fase 8). Sem ele, `session_detach`/`session_reattach` falham e `window_role` é sempre main. */
   pickDirectory?: (defaultPath: string | undefined, sender: PtySender) => Promise<string | null>;
   windows?: Pick<WindowManager, "openDetached" | "reattach" | "roleOf" | "dropTarget">;
@@ -225,6 +231,24 @@ export function createHandlers(deps: HandlerDeps): Handlers {
       const dir = await assertWorkDir(targetPath);
       const err = await deps.openPath(dir);
       if (err) throw new Error(err);
+    },
+    /** Mesma checagem do `path_open`: só pasta real. O VS Code recebe o caminho como argumento. */
+    path_open_editor: async ({ path: targetPath }) => {
+      if (typeof targetPath !== "string" || !targetPath) return;
+      const dir = await assertWorkDir(targetPath);
+      const open = deps.openEditor ?? ((d: string) => openInEditor(d, { env: { ...process.env, PATH: spaceSubprocessPath() } }));
+      const err = await open(dir);
+      if (err) throw new Error(err);
+    },
+    /** Print de tela do clipboard → `<userData>/clipboard/*.png`. Devolve o caminho, ou null sem imagem. */
+    clipboard_image_save: async () => {
+      if (!deps.readClipboardImage) throw new Error("clipboard indisponível");
+      return saveClipboardImage(await deps.readClipboardImage(), deps.userDataDir);
+    },
+    /** Imagem arrastada sem caminho no disco (ex.: do navegador). Mesmo destino do clipboard. */
+    image_save: ({ data, mime }) => {
+      if (!(data instanceof Uint8Array)) throw new Error("imagem inválida");
+      return saveClipboardImage(data, deps.userDataDir, new Date(), typeof mime === "string" ? mime : "");
     },
     space_spawn_plan: ({ spaceId, providerId, cwd }) => {
       const space = findSpace(str(spaceId, "space_id"));
@@ -414,6 +438,15 @@ export function registerHandlers(deps: Omit<HandlerDeps, "openPath"> & Partial<P
   const windows = deps.windows as WindowManager | undefined;
   const handlers = createHandlers({
     openPath: (p) => shell.openPath(p),
+    readClipboardImage: async () => {
+      // Electron 44: clipboard assíncrono no modelo W3C. O sistema converte o print para image/png.
+      for (const item of await clipboard.read()) {
+        if (!item.types.includes("image/png")) continue;
+        const blob = (await item.getType("image/png")) as Blob;
+        return new Uint8Array(await blob.arrayBuffer());
+      }
+      return null;
+    },
     pickDirectory: async (defaultPath, sender) => {
       const owner = BrowserWindow.fromWebContents(sender as WebContents);
       const options = { defaultPath, properties: ["openDirectory", "createDirectory"] as Array<"openDirectory" | "createDirectory"> };

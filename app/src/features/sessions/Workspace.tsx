@@ -1,4 +1,5 @@
 import { NewAgentDialog } from "./NewAgentDialog";
+import { newTerminalInFolder } from "./newTerminalInFolder";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
@@ -235,6 +236,16 @@ export function Workspace({
             </button>
             <button
               type="button"
+              className="terminal-tab-add-btn"
+              aria-label="+ Terminal em pasta"
+              title={t("home.createTerminalInFolder")}
+              disabled={!spaceId}
+              onClick={() => spaceId && void newTerminalInFolder(spaceId)}
+            >
+              📂
+            </button>
+            <button
+              type="button"
               className="terminal-tab-add-agent"
               aria-label="+ Agente"
               title="Novo terminal já com um agente rodando"
@@ -294,6 +305,11 @@ export function Workspace({
             >
               {t(spaceId ? "home.createTerminal" : "home.configureSpaces")}
             </button>
+            {spaceId && (
+              <button className="empty-create-folder" onClick={() => void newTerminalInFolder(spaceId)}>
+                {t("home.createTerminalInFolder")}
+              </button>
+            )}
             {spaceId && (
               <span className="empty-shortcut">
                 <kbd>{typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac") ? "⌘" : "Ctrl"}</kbd> + <kbd>T</kbd>

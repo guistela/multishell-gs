@@ -189,6 +189,51 @@ describe("spaces", () => {
     expect(openPath).not.toHaveBeenCalled();
   });
 
+  it("path_open_editor abre a pasta no VS Code pelo dep injetado", async () => {
+    const openEditor = vi.fn(async () => "");
+    h = createHandlers({ store: new Store(dir), pty: {} as any, userDataDir: dir, openPath, openEditor });
+    await call("path_open_editor", { path: dir });
+    expect(openEditor).toHaveBeenCalledWith(await realpath(dir));
+    expect(openPath).not.toHaveBeenCalled();
+  });
+
+  it("path_open_editor recusa arquivo e pasta inexistente, e repassa erro do editor", async () => {
+    const openEditor = vi.fn(async () => "VS Code não encontrado");
+    h = createHandlers({ store: new Store(dir), pty: {} as any, userDataDir: dir, openPath, openEditor });
+    const arquivo = join(dir, "pwn.command");
+    writeFileSync(arquivo, "#!/bin/sh\necho pwn\n");
+    await expect(async () => call("path_open_editor", { path: arquivo })).rejects.toThrow(/pasta/i);
+    await expect(async () => call("path_open_editor", { path: join(dir, "nao-existe") })).rejects.toThrow();
+    expect(openEditor).not.toHaveBeenCalled();
+    await expect(async () => call("path_open_editor", { path: dir })).rejects.toThrow(/VS Code/);
+  });
+
+  it("clipboard_image_save grava o PNG do clipboard em <userData>/clipboard e devolve o caminho", async () => {
+    const readClipboardImage = vi.fn(async () => Buffer.from("png"));
+    h = createHandlers({ store: new Store(dir), pty: {} as any, userDataDir: dir, openPath, readClipboardImage });
+    const path = (await call("clipboard_image_save")) as string;
+    expect(path.startsWith(join(dir, "clipboard"))).toBe(true);
+    expect(path.endsWith(".png")).toBe(true);
+    expect(readFileSync(path)).toEqual(Buffer.from("png"));
+  });
+
+  it("clipboard_image_save devolve null sem imagem no clipboard", async () => {
+    h = createHandlers({ store: new Store(dir), pty: {} as any, userDataDir: dir, openPath, readClipboardImage: async () => null });
+    expect(await call("clipboard_image_save")).toBeNull();
+  });
+
+  it("image_save grava a imagem arrastada sem caminho e devolve o caminho", async () => {
+    const path = (await call("image_save", { data: new Uint8Array([1, 2, 3]), mime: "image/webp" })) as string;
+    expect(path.startsWith(join(dir, "clipboard"))).toBe(true);
+    expect(path.endsWith(".webp")).toBe(true);
+    expect([...readFileSync(path)]).toEqual([1, 2, 3]);
+  });
+
+  it("image_save recusa dado inválido e tipo que não é imagem", async () => {
+    await expect(async () => call("image_save", { data: "abc", mime: "image/png" })).rejects.toThrow();
+    await expect(async () => call("image_save", { data: new Uint8Array([1]), mime: "text/html" })).rejects.toThrow(/suportado/);
+  });
+
   it("space_spawn_plan resolve espaço e provider e repassa cwd", async () => {
     const plan: any = await call("space_spawn_plan", { spaceId: "sp-a", providerId: "pv-claude", cwd: "/tmp" });
     expect(plan.cwd).toBe("/tmp");

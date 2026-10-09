@@ -4,6 +4,7 @@ import type { MenuItem } from "../../components/ContextMenu";
 import { useAppStore } from "../../store";
 import { LAYOUT_MODES, type Space } from "../../types";
 import { nextTitle } from "../sessions/sessionTitles";
+import { newTerminalInFolder } from "../sessions/newTerminalInFolder";
 
 interface Props {
   space: Space;
@@ -38,6 +39,14 @@ export function useSpaceMenuItems({ space, onOpenSettings }: Props): MenuItem[] 
       shortcut: `${modKey}T`,
       onClick: () => {
         addSession({ space_id: space.id, title: nextTitle(sessions) });
+      },
+    },
+    {
+      id: "new-in-folder",
+      label: t("session:menu.newInFolder"),
+      icon: "📂",
+      onClick: () => {
+        void newTerminalInFolder(space.id);
       },
     },
     {

@@ -5,6 +5,8 @@ import type { MultishellBridge, SessionDrag, PtyExit, SessionReattached, Shortcu
 import type { Provider, Space } from "../types";
 
 export const invokeMock = vi.fn();
+/** Caminho real do arquivo arrastado. Padrão: o `name` do File, para o teste controlar. */
+export const pathForFileMock = vi.fn((file: File) => file.name);
 export const sessionDragListeners = new Set<(e: SessionDrag | null) => void>();
 
 /** Callbacks registrados via onPtyOutput, por session_id. */
@@ -40,6 +42,7 @@ export function makeBridge(overrides: Partial<MultishellBridge> = {}): Multishel
       storeChangedListeners.add(cb);
       return () => { storeChangedListeners.delete(cb); };
     },
+    pathForFile: (file) => pathForFileMock(file),
     platform: "darwin",
     ...overrides,
   };

@@ -71,7 +71,11 @@ Pasta de config do provider dentro do espaço: `<raiz>/providers/<slug do provid
 
 Valor de segredo nunca entra no plano. As chaves marcadas como `is_secret` saem em `secret_keys`; `pty_spawn` recebe `space_id` (e `provider_id`) e lê o keyring no processo main, antes de criar o shell. Assim nenhum segredo trafega pelo renderer.
 
-`path_open` só abre pasta existente com caminho absoluto. O `cwd` da sessão vem do OSC 7, que qualquer saída de terminal pode forjar; sem essa checagem um arquivo executável forjado abriria pelo LaunchServices.
+`clipboard_image_save` (sem args → `string | null`): grava a imagem do clipboard em `<userData>/clipboard/print-<data>_<hora>.png` e devolve o caminho; null sem imagem. O front digita o caminho no terminal ("Colar do clipboard"), porque no Windows o Ctrl+V não passa imagem para o CLI. Sem imagem, cola o texto.
+
+`image_save` (`data: Uint8Array, mime`) → `string`: mesmo destino, para imagem arrastada sem caminho no disco (ex.: do navegador). Aceita png, jpeg, gif e webp, até 50 MB. Arquivo arrastado com caminho real (Explorer/Finder) não passa pelo main: o preload expõe `pathForFile` (via `webUtils.getPathForFile`) e o terminal recebe o caminho.
+
+`path_open` e `path_open_editor` (VS Code) só abrem pasta existente com caminho absoluto. O `cwd` da sessão vem do OSC 7, que qualquer saída de terminal pode forjar; sem essa checagem um arquivo executável forjado abriria pelo LaunchServices.
 
 ## Eventos
 `pty-output-<session_id>` (bytes), `pty-exit` ({session_id, code}), `pty-closed` (session_id).

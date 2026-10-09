@@ -28,7 +28,10 @@
     "bypass": "Bypass",
     "bypassNextStart": "Applies on next start",
     "start": "Start harness",
-    "close": "Close session"
+    "close": "Close session",
+    "openFolder": "Open folder",
+    "openEditor": "Open in VS Code",
+    "pasteClipboard": "Paste from clipboard"
   },
   "exit": {
     "banner": "Shell exited (code {{code}})",
@@ -84,6 +87,7 @@
     "emptyTitle": "Ready when you are",
     "emptyDescription": "Create a terminal in this space to get started. Your settings and credentials are already organized here.",
     "createTerminal": "Create terminal",
+    "createTerminalInFolder": "Create terminal in folder…",
     "noSpacesTitle": "Your next project starts here",
     "noSpacesDescription": "Set up a space to organize your terminals and accounts.",
     "configureSpaces": "Set up spaces",
@@ -92,6 +96,7 @@
   "menu": {
     "newSession": "New session",
     "newInSpace": "New terminal in this space",
+    "newInFolder": "New terminal in folder…",
     "rename": "Rename",
     "duplicate": "Duplicate terminal",
     "restart": "Restart terminal",
@@ -101,6 +106,7 @@
     "selectAll": "Select all",
     "copyCwd": "Copy working directory",
     "openFolder": "Open folder in file manager",
+    "openEditor": "Open in VS Code",
     "openSpaceFolder": "Open space folder",
     "spaceSettings": "Space settings...",
     "terminalSettings": "Terminal settings...",
@@ -116,7 +122,8 @@
     "layout": "Layout",
     "theme": "Theme for this terminal",
     "themeDefault": "App default",
-    "kanbanTask": "New Kanban task from selection"
+    "kanbanTask": "New Kanban task from selection",
+    "pasteClipboard": "Paste from clipboard (image or text)"
   },
   "search": {
     "placeholder": "Search terminals and spaces...",

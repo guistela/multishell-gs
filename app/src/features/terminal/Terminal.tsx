@@ -11,6 +11,8 @@ import { addTaskFromTerminal } from "../agents/kanbanStore";
 import { forgetSession, markOutput } from "./agentActivity";
 import { cleanSelection } from "./selection";
 import { SelectionBar } from "./SelectionBar";
+import { pasteFromClipboard } from "../sessions/pasteFromClipboard";
+import { dropFiles } from "./dropFiles";
 
 import type { Session } from "../../types";
 import { pty } from "./pty";
@@ -228,6 +230,12 @@ export function Terminal({ session, onOpenSettings }: Props) {
       },
     },
     {
+      id: "term-paste-clipboard",
+      label: t("menu.pasteClipboard"),
+      icon: "🖼️",
+      onClick: () => void pasteFromClipboard(sessionId),
+    },
+    {
       id: "term-kanban-task",
       label: t("menu.kanbanTask"),
       icon: "🗂",
@@ -331,6 +339,19 @@ export function Terminal({ session, onOpenSettings }: Props) {
   return (
     <div
       className="terminal-wrap"
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={(e) => {
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length === 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        termRef.current?.focus();
+        void dropFiles(sessionId, files);
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();

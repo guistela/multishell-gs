@@ -55,6 +55,43 @@ describe("SessionBar", () => {
     expect(s).toMatchObject({ title: "Alpha", space_id: spaceB.id });
   });
 
+  it("Abrir pasta chama path_open com o cwd da sessão", async () => {
+    useAppStore.setState({ sessions: [{ ...session, cwd: "/proj" }] });
+    render(<Bar />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir pasta" }));
+    await flush();
+    expect(invokeMock).toHaveBeenCalledWith("path_open", { path: "/proj" });
+  });
+
+  it("Abrir no VS Code chama path_open_editor com o cwd da sessão", async () => {
+    useAppStore.setState({ sessions: [{ ...session, cwd: "/proj" }] });
+    render(<Bar />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir no VS Code" }));
+    await flush();
+    expect(invokeMock).toHaveBeenCalledWith("path_open_editor", { path: "/proj" });
+  });
+
+  it("sem cwd, VS Code usa a pasta base do espaço; sem ela, fica desabilitado", async () => {
+    useAppStore.setState({ spaces: [{ ...spaceA, base_path: "/base" }, spaceB] });
+    render(<Bar />);
+    fireEvent.click(screen.getByRole("button", { name: "Abrir no VS Code" }));
+    await flush();
+    expect(invokeMock).toHaveBeenCalledWith("path_open_editor", { path: "/base" });
+    useAppStore.setState({ spaces: [spaceA, spaceB] });
+    await flush();
+    expect(screen.getByRole("button", { name: "Abrir no VS Code" })).toBeDisabled();
+  });
+
+  it("Colar do clipboard salva a imagem e digita o caminho no terminal", async () => {
+    invokeMock.mockImplementation(async (cmd: string) => (cmd === "clipboard_image_save" ? "/data/clipboard/print.png" : undefined));
+    render(<Bar />);
+    fireEvent.click(screen.getByRole("button", { name: "Colar do clipboard" }));
+    await flush();
+    const write = invokeMock.mock.calls.find((c) => c[0] === "pty_write")!;
+    expect(write[1].sessionId).toBe("s1");
+    expect(new TextDecoder().decode(new Uint8Array(write[1].data))).toBe("/data/clipboard/print.png ");
+  });
+
   it("✕ fecha a sessão", () => {
     render(<Bar />);
     fireEvent.click(screen.getByRole("button", { name: "Fechar sessão" }));
