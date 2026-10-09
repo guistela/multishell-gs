@@ -2,3 +2,10 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   node-pty: true
+
+# O electron-builder gera o DMG x64 e o arm64 a partir do mesmo node_modules.
+# Pacotes nativos por plataforma (ex.: @napi-rs/keyring-darwin-*) só entram se o pnpm
+# instalar as duas CPUs; senão um dos DMGs quebra com "Cannot find native binding".
+supportedArchitectures:
+  os: [current]
+  cpu: [x64, arm64]

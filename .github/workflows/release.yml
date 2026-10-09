@@ -60,6 +60,11 @@ jobs:
           #   APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           #   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Check native bindings (mac)
+        # Cada .app precisa do keyring-darwin-<arch> da própria CPU.
+        if: runner.os == 'macOS'
+        run: pnpm check:native
+
       - name: Upload artifacts (debug)
         uses: actions/upload-artifact@v7
         with:

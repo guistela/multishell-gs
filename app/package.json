@@ -12,6 +12,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "dist": "electron-vite build && electron-builder --publish never",
+    "check:native": "node scripts/check-native-bindings.mjs",
     "test": "vitest run && vitest run --config vitest.electron.config.ts",
     "test:renderer": "vitest run",
     "test:electron": "vitest run --config vitest.electron.config.ts",
