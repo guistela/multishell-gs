@@ -20,7 +20,7 @@
     "postinstall": "node -e \"const fs=require('fs'),p='node_modules/node-pty/prebuilds';if(fs.existsSync(p))for(const d of fs.readdirSync(p)){const h=p+'/'+d+'/spawn-helper';if(fs.existsSync(h))fs.chmodSync(h,0o755)}\""
   },
   "dependencies": {
-    "@napi-rs/keyring": "^2.0.0",
+    "@napi-rs/keyring": "^2.1.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "bplist-parser": "^0.5.0",
