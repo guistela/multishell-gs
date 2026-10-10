@@ -7,7 +7,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import bplist from "bplist-parser";
+import { parseFile } from "bplist-parser";
 import { newProvider, normalizeProvider, presets, type EnvVar, type Provider } from "./provider.js";
 import { PERSONAL_ID, WORK_ID, realHome, type Space, type SpaceSecurity } from "./space.js";
 
@@ -264,7 +264,7 @@ export function swiftPlistPath(): string {
 export async function readPlist(file: string): Promise<Record<string, unknown>> {
   let parsed: unknown[];
   try {
-    parsed = await bplist.parseFile(file);
+    parsed = await parseFile(file);
   } catch (e) {
     throw new Error(`plist: ${(e as Error).message}`);
   }
