@@ -575,18 +575,17 @@ describe("space.bashProfileContent", () => {
   });
 
   it("materialize grava .bash_profile no windows e no mac", async () => {
+    // Lê do realHomeDir passado ao materialize: spaceRoot() usa USERPROFILE no Windows, não HOME.
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "multishell-bash-"));
-    const saved = process.env.HOME;
-    process.env.HOME = tmp;
     try {
       for (const o of ["win32", "darwin"] as const) {
         const s = spaceFechado();
         s.security.share_keychain = true;
         await materialize(s, null, tmp, o);
-        expect(fs.readFileSync(path.join(spaceRoot(s), ".bash_profile"), "utf8")).toContain("PROMPT_COMMAND");
+        const profile = path.join(tmp, ".multishell", "profiles", s.directory_name, ".bash_profile");
+        expect(fs.readFileSync(profile, "utf8")).toContain("PROMPT_COMMAND");
       }
     } finally {
-      process.env.HOME = saved;
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
