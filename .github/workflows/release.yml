@@ -3,13 +3,31 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Disparo pelo auto-release: tag criada com GITHUB_TOKEN não gera evento de push.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag já existente a publicar (ex.: v0.1.12)"
+        required: true
 
 permissions:
   contents: write
 
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
 jobs:
+  # Release só sai se o scan de segurança passar no código da tag.
+  security:
+    uses: ./.github/workflows/security.yml
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+
   dist:
     name: ${{ matrix.name }}
+    needs: security
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,6 +44,8 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
       - uses: pnpm/action-setup@v6
         with:
@@ -39,6 +59,11 @@ jobs:
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
+
+      # A tag é a fonte da versão. O auto-release não faz commit de bump no main.
+      - name: Versão a partir da tag
+        shell: bash
+        run: pnpm pkg set "version=${TAG#v}"
 
       - name: Typecheck
         run: pnpm typecheck
@@ -77,6 +102,7 @@ jobs:
         with:
           draft: false
           prerelease: false
-          name: Multishell ${{ github.ref_name }}
+          tag_name: ${{ env.TAG }}
+          name: Multishell ${{ env.TAG }}
           body: Veja os commits desde a tag anterior para detalhes.
           files: ${{ matrix.artifacts }}

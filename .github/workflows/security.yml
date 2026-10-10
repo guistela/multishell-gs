@@ -1,19 +1,23 @@
 name: Security & Compliance
 
+# Roda em todo push/PR no main, toda segunda e antes de cada release (workflow_call).
+# Qualquer job vermelho barra o merge (branch protection) e barra o release (needs).
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   schedule:
-    - cron: '0 4 * * 1' # Every Monday at 04:00 UTC
+    - cron: '0 4 * * 1' # Toda segunda às 04:00 UTC
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write
 
 concurrency:
-  group: security-${{ github.ref }}
+  # workflow_call herda o nome do chamador; o sufixo evita cancelar o release por um push no main.
+  group: security-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -34,11 +38,110 @@ jobs:
   sast-scan:
     name: Semgrep SAST
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     container:
       image: semgrep/semgrep:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # O SARIF vai para a aba Security mesmo quando o scan falha.
       - name: Run Semgrep
-        run: semgrep scan --config auto --error
+        run: semgrep scan --config auto --error --sarif-output=semgrep.sarif
+
+      - name: Upload SARIF
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  trivy:
+    name: Trivy (deps, secrets, misconfig)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # Relatório completo (todas as severidades) para a aba Security. Não falha.
+      - name: Trivy report (SARIF)
+        # Fixado por SHA: as tags do trivy-action foram adulteradas em 2026.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: sarif
+          output: trivy.sarif
+          skip-dirs: app/node_modules,app/out,app/release,.build
+          exit-code: '0'
+        env:
+          # Inclui devDependencies: o build do DMG roda com elas.
+          TRIVY_INCLUDE_DEV_DEPS: 'true'
+
+      - name: Upload SARIF
+        if: always() && hashFiles('trivy.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+      # Gate: falha com HIGH/CRITICAL que já tem versão corrigida.
+      - name: Trivy gate (HIGH/CRITICAL com correção)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          skip-setup-trivy: true
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          skip-dirs: app/node_modules,app/out,app/release,.build
+          exit-code: '1'
+        env:
+          TRIVY_INCLUDE_DEV_DEPS: 'true'
+
+  pnpm-audit:
+    name: pnpm audit (produção)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # Só o que vai dentro do app instalado. Qualquer severidade a partir de moderate barra.
+      - name: Audit prod deps
+        run: pnpm audit --prod --audit-level moderate
+
+  dependency-review:
+    name: Dependency Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Barra PR que introduz dependência com vulnerabilidade HIGH ou pior.
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

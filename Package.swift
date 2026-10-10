@@ -12,7 +12,9 @@ let package = Package(
             targets: ["MultiShell"])
     ],
     dependencies: [
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.0.7")
+        // 1.99.0 tornou `terminal` interno e quebrou o build (e o CodeQL Swift).
+        // Package.resolved fica fora do git, então a faixa precisa ser fechada aqui.
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", .upToNextMinor(from: "1.20.0"))
     ],
     targets: [
         .target(
