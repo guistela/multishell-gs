@@ -10,7 +10,7 @@ import { useSpaceMenuItems } from "../spaces/useSpaceMenuItems";
 import { Terminal } from "../terminal/Terminal";
 import { SessionDragHandle } from "./SessionDragHandle";
 import { nextTitle } from "./sessionTitles";
-import { KanbanTab, HandoffTab, ActivityTab, SnapshotsTab, SecurityTab, AccountsTab } from "../agents/WorkspaceTabs";
+import { HandoffTab, ActivityTab, SnapshotsTab, SecurityTab, AccountsTab } from "../agents/WorkspaceTabs";
 import { handoffMenuItems } from "../agents/handoffMenu";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { useSessionMemory } from "./useSessionMemory";
@@ -23,6 +23,42 @@ const AGENT_STATE_LABEL: Record<AgentState, string> = {
   idle: "Agente parado, esperando você",
   off: "",
 };
+
+/** Tipo próprio no dataTransfer: só arrastes de aba/tile reordenam, nada de texto ou arquivo. */
+const TAB_DRAG_TYPE = "application/x-multishell-tab";
+
+/** Props de arrastar-e-soltar que reordenam o terminal dentro do espaço. */
+function reorderDragProps(
+  session: Session,
+  dropTarget: string | null,
+  setDropTarget: (id: string | null) => void,
+) {
+  return {
+    draggable: true,
+    "data-drop-target": dropTarget === session.id || undefined,
+    onDragStart: (e: React.DragEvent) => {
+      // Botões internos (fechar, expandir, destacar) não iniciam reordenação.
+      if ((e.target as HTMLElement).closest?.("button")) { e.preventDefault(); return; }
+      e.dataTransfer.setData(TAB_DRAG_TYPE, session.id);
+      e.dataTransfer.effectAllowed = "move";
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (!Array.from(e.dataTransfer.types).includes(TAB_DRAG_TYPE)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (dropTarget !== session.id) setDropTarget(session.id);
+    },
+    onDragLeave: () => { if (dropTarget === session.id) setDropTarget(null); },
+    onDragEnd: () => setDropTarget(null),
+    onDrop: (e: React.DragEvent) => {
+      const id = e.dataTransfer.getData(TAB_DRAG_TYPE);
+      setDropTarget(null);
+      if (!id) return;
+      e.preventDefault();
+      useAppStore.getState().moveSession(id, session.id);
+    },
+  };
+}
 
 /** Keep terminal instances mounted across layout and space changes. */
 export function Workspace({
@@ -46,15 +82,33 @@ export function Workspace({
   const space = spaces.find((s) => s.id === spaceId);
   const mode = (spaceId && layouts[spaceId]) || "single";
   const inSpace = sessions.filter((s) => s.space_id === spaceId);
+  const visibleInSpace = inSpace.filter((s) => !s.hidden);
   const tiled = mode === "grid" || mode === "vertical" || mode === "horizontal";
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const sessionMemory = useSessionMemory();
   const agentStates = useAgentStates(sessions);
 
   const spaceMenuItems = space ? useSpaceMenuItems({ space, onOpenSettings }) : [];
 
+  /** Mover e ocultar: comum à aba, ao tile e à linha da lista. */
+  const arrangeItems = (s: Session): MenuItem[] => {
+    const pos = inSpace.findIndex((x) => x.id === s.id);
+    const store = useAppStore.getState();
+    return [
+      { id: "move-left", label: t("layout.moveLeft"), icon: "←", disabled: pos <= 0, onClick: () => store.shiftSession(s.id, -1) },
+      { id: "move-right", label: t("layout.moveRight"), icon: "→", disabled: pos < 0 || pos >= inSpace.length - 1, onClick: () => store.shiftSession(s.id, 1) },
+      s.hidden
+        ? { id: "show", label: t("layout.show"), icon: "◉", onClick: () => store.updateSession(s.id, { hidden: false }) }
+        : { id: "hide", label: t("layout.hide"), icon: "◌", onClick: () => store.updateSession(s.id, { hidden: true }) },
+    ];
+  };
+  const withArrange = (s: Session, items: MenuItem[]): MenuItem[] => [...arrangeItems(s), { separator: true }, ...items];
+
   /** Menu da aba do terminal: handoff multiagente dentro do próprio espaço. */
   const tabMenuItems = (s: Session): MenuItem[] => [
+    ...arrangeItems(s),
+    { separator: true },
     ...handoffMenuItems(s),
     { separator: true },
     {
@@ -95,14 +149,6 @@ export function Workspace({
           >
             Terminais
             <span className="count-badge">{inSpace.length}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`workspace-tab-btn ${activeTab === "kanban" ? "active" : ""}`}
-            onClick={() => setWorkspaceTab("kanban")}
-          >
-            Kanban
           </button>
 
           <button
@@ -148,7 +194,6 @@ export function Workspace({
 
       </div>
 
-      {activeTab === "kanban" && <KanbanTab />}
       {activeTab === "handoff" && <HandoffTab />}
       {activeTab === "activity" && <ActivityTab />}
       {activeTab === "snapshots" && <SnapshotsTab />}
@@ -175,8 +220,13 @@ export function Workspace({
                   key={s.id}
                   role="tab"
                   aria-selected={isSelected}
-                  className={`terminal-tab-chip ${isSelected ? "active" : ""}`}
-                  onClick={() => useAppStore.getState().selectSession(s.id)}
+                  className={`terminal-tab-chip ${isSelected ? "active" : ""}${s.hidden ? " hidden-from-view" : ""}`}
+                  {...reorderDragProps(s, dropTarget, setDropTarget)}
+                  onClick={() => {
+                    // Clicar na aba de um terminal oculto é pedir para vê-lo: ele volta à grade e à lista.
+                    if (s.hidden) useAppStore.getState().updateSession(s.id, { hidden: false });
+                    useAppStore.getState().selectSession(s.id);
+                  }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setContextMenu({ x: e.clientX, y: e.clientY, items: tabMenuItems(s) });
@@ -268,18 +318,19 @@ export function Workspace({
           </div>
         </div>
 
-        {mode === "list" && inSpace.length > 0 && (
+        {mode === "list" && visibleInSpace.length > 0 && (
           <div className="session-overview" aria-label={t("layout.list")}>
-            {inSpace.map((s) => (
+            {visibleInSpace.map((s) => (
               <OverviewRow
                 key={s.id}
                 session={s}
                 isSelected={s.id === selected}
+                dragProps={reorderDragProps(s, dropTarget, setDropTarget)}
                 onOpenSettings={onOpenSettings}
                 onDoubleClick={() => toggleLayoutMaximize(s.id)}
                 onContextMenu={(e, items) => {
                   e.preventDefault();
-                  setContextMenu({ x: e.clientX, y: e.clientY, items });
+                  setContextMenu({ x: e.clientX, y: e.clientY, items: withArrange(s, items) });
                 }}
               />
             ))}
@@ -328,11 +379,12 @@ export function Workspace({
               isSelected={s.id === selected}
               isTiled={tiled}
               inSpaceCount={inSpace.length}
+              dragProps={reorderDragProps(s, dropTarget, setDropTarget)}
               onOpenSettings={onOpenSettings}
               onToggleMaximize={() => toggleLayoutMaximize(s.id)}
               onContextMenu={(e, items) => {
                 e.preventDefault();
-                setContextMenu({ x: e.clientX, y: e.clientY, items });
+                setContextMenu({ x: e.clientX, y: e.clientY, items: withArrange(s, items) });
               }}
             />
           ))}
@@ -352,15 +404,19 @@ export function Workspace({
   );
 }
 
+type DragProps = ReturnType<typeof reorderDragProps>;
+
 function OverviewRow({
   session,
   isSelected,
+  dragProps,
   onOpenSettings,
   onDoubleClick,
   onContextMenu,
 }: {
   session: Session;
   isSelected: boolean;
+  dragProps: DragProps;
   onOpenSettings?: (tab?: "providers" | "spaces" | "terminal") => void;
   onDoubleClick: () => void;
   onContextMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
@@ -371,6 +427,7 @@ function OverviewRow({
   return (
     <div
       className={`overview-row${isSelected ? " selected" : ""}`}
+      {...dragProps}
       onContextMenu={(e) => onContextMenu(e, items)}
       onDoubleClick={onDoubleClick}
     >
@@ -394,6 +451,7 @@ function WorkspaceTerminalTile({
   isSelected,
   isTiled,
   inSpaceCount,
+  dragProps,
   onOpenSettings,
   onToggleMaximize,
   onContextMenu,
@@ -403,6 +461,7 @@ function WorkspaceTerminalTile({
   isSelected: boolean;
   isTiled: boolean;
   inSpaceCount: number;
+  dragProps: DragProps;
   onOpenSettings?: (tab?: "providers" | "spaces" | "terminal") => void;
   onToggleMaximize: () => void;
   onContextMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
@@ -413,13 +472,14 @@ function WorkspaceTerminalTile({
   return (
     <article
       className={`terminal-host terminal-tile${isSelected ? " active" : ""}`}
-      hidden={session.space_id !== spaceId || (!isTiled && !isSelected)}
+      hidden={session.space_id !== spaceId || (isTiled ? !!session.hidden : !isSelected)}
       aria-label={session.title}
       onPointerDown={() => { if (!isSelected) useAppStore.getState().selectSession(session.id); }}
       onFocusCapture={() => { if (!isSelected) useAppStore.getState().selectSession(session.id); }}
     >
       <header
         className="terminal-tile-header"
+        {...dragProps}
         onContextMenu={(e) => onContextMenu(e, sessionItems)}
         onDoubleClick={onToggleMaximize}
       >

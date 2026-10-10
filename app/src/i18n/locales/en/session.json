@@ -80,7 +80,14 @@
     "focus": "Expand {{title}}",
     "restore": "Exit full screen (restore grid)",
     "close": "Close {{title}}",
-    "select": "Select {{title}}"
+    "select": "Select {{title}}",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "hide": "Hide from this view",
+    "show": "Show",
+    "hiddenCount_one": "{{count}} hidden",
+    "hiddenCount_other": "{{count}} hidden",
+    "showHidden": "Show hidden terminals"
   },
   "home": {
     "caption": "A place for your terminals",
@@ -94,6 +101,8 @@
     "shortcutHint": "to open a terminal"
   },
   "menu": {
+    "moveUp": "Move up",
+    "moveDown": "Move down",
     "newSession": "New session",
     "newInSpace": "New terminal in this space",
     "newInFolder": "New terminal in folder…",
@@ -122,7 +131,6 @@
     "layout": "Layout",
     "theme": "Theme for this terminal",
     "themeDefault": "App default",
-    "kanbanTask": "New Kanban task from selection",
     "pasteClipboard": "Paste from clipboard (image or text)"
   },
   "search": {

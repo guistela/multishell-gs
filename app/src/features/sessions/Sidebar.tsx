@@ -279,6 +279,39 @@ export function Sidebar({
   );
 }
 
+const SPACE_DRAG_TYPE = "application/x-multishell-space";
+
+/** Arrastar um espaço sobre outro põe o arrastado no lugar do alvo. */
+function useSpaceReorder(space: Space) {
+  const [over, setOver] = useState(false);
+  return {
+    draggable: true,
+    "data-drop-target": over || undefined,
+    onDragStart: (e: React.DragEvent) => {
+      // Botões internos (recolher, +) não arrastam. O avatar recolhido é ele mesmo um botão.
+      const button = (e.target as HTMLElement).closest?.("button");
+      if (button && button !== e.currentTarget) { e.preventDefault(); return; }
+      e.dataTransfer.setData(SPACE_DRAG_TYPE, space.id);
+      e.dataTransfer.effectAllowed = "move";
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (!Array.from(e.dataTransfer.types).includes(SPACE_DRAG_TYPE)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setOver(true);
+    },
+    onDragLeave: () => setOver(false),
+    onDragEnd: () => setOver(false),
+    onDrop: (e: React.DragEvent) => {
+      setOver(false);
+      const id = e.dataTransfer.getData(SPACE_DRAG_TYPE);
+      if (!id) return;
+      e.preventDefault();
+      useAppStore.getState().moveSpace(id, space.id);
+    },
+  };
+}
+
 function CollapsedSpaceAvatar({
   space,
   active,
@@ -291,8 +324,10 @@ function CollapsedSpaceAvatar({
   onContextMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
 }) {
   const items = useSpaceMenuItems({ space, onOpenSettings });
+  const reorder = useSpaceReorder(space);
   return (
     <button
+      {...reorder}
       className={`space-avatar${active ? " active" : ""}`}
       aria-label={space.name}
       aria-pressed={active}
@@ -328,6 +363,7 @@ function SpaceGroup({
 }) {
   const { t } = useTranslation("session");
   const spaceItems = useSpaceMenuItems({ space, onOpenSettings });
+  const reorder = useSpaceReorder(space);
 
   return (
     <section
@@ -335,7 +371,7 @@ function SpaceGroup({
       data-testid={`space-${space.id}`}
       style={{ "--space-color": space.color_hex } as React.CSSProperties}
     >
-      <h2 onContextMenu={(e) => onContextMenu(e, spaceItems)}>
+      <h2 {...reorder} onContextMenu={(e) => onContextMenu(e, spaceItems)}>
         {onToggleCollapse && (
           <button
             type="button"

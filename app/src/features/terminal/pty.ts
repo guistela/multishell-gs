@@ -24,6 +24,11 @@ export interface SpawnResult {
 
 const encoder = new TextEncoder();
 
+export interface ShellOptions {
+  default: string;
+  git_bash: string | null;
+}
+
 export const pty = {
   spawn: async (req: SpawnRequest): Promise<SpawnResult> => (await invoke<SpawnResult | undefined>("pty_spawn", { req })) ?? { attached: false },
   /** O IPC do Electron serializa Uint8Array (structured clone): vai direto, sem Array.from. */
@@ -32,6 +37,8 @@ export const pty = {
     invoke<void>("pty_resize", { sessionId, cols, rows }),
   kill: (sessionId: string) => invoke<void>("pty_kill", { sessionId }),
   defaultShell: () => invoke<string>("default_shell"),
+  /** Shell padrão do SO e bash.exe do Git (só Windows). */
+  shellOptions: () => invoke<ShellOptions | undefined>("shell_options"),
   /** Síncrono: devolve o unsubscribe. */
   onOutput: (sessionId: string, cb: (bytes: Uint8Array) => void): (() => void) => bridge().onPtyOutput(sessionId, cb),
   onExit: (cb: (exit: PtyExit) => void): (() => void) => bridge().onPtyExit(cb),

@@ -1,4 +1,11 @@
 {
+  "update": {
+    "available": "New version v{{version}}",
+    "download": "Download",
+    "ignore": "Ignore this version",
+    "notifyTitle": "Multishell v{{version}} available",
+    "notifyBody": "Click Download in the status bar to install."
+  },
   "app": { "title": "Multishell" },
   "language": { "label": "Language", "pt-BR": "Português", "en": "English" },
   "session": {

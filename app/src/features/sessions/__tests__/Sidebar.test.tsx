@@ -269,3 +269,32 @@ describe("Sidebar: seção de harnesses", () => {
     expect(screen.queryByTestId("sidebar-harness-list")).not.toBeInTheDocument();
   });
 });
+
+describe("Sidebar: ordem dos espaços", () => {
+  const order = () => screen.getAllByTestId(/^space-/).filter((el) => el.tagName === "SECTION").map((el) => el.getAttribute("data-testid"));
+
+  it("o menu do espaço move para baixo e para cima", () => {
+    invokeMock.mockImplementation(async (cmd: string, args?: { ids: string[] }) =>
+      cmd === "spaces_reorder" ? args!.ids.map((id) => [spaceA, spaceB].find((s) => s.id === id)) : undefined);
+    render(<Sidebar onOpenSettings={() => {}} />);
+    fireEvent.contextMenu(screen.getByText("Pessoal"));
+    expect(screen.getByText("Mover para cima").closest("button")).toBeDisabled();
+    fireEvent.click(screen.getByText("Mover para baixo"));
+    expect(order()).toEqual([`space-${spaceB.id}`, `space-${spaceA.id}`]);
+    expect(invokeMock).toHaveBeenCalledWith("spaces_reorder", { ids: [spaceB.id, spaceA.id] });
+    fireEvent.contextMenu(screen.getByText("Pessoal"));
+    fireEvent.click(screen.getByText("Mover para cima"));
+    expect(order()).toEqual([`space-${spaceA.id}`, `space-${spaceB.id}`]);
+  });
+
+  it("arrastar o título de um espaço sobre outro troca a posição", () => {
+    render(<Sidebar onOpenSettings={() => {}} />);
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (k: string, v: string) => data.set(k, v), getData: (k: string) => data.get(k) ?? "", types: ["application/x-multishell-space"], effectAllowed: "", dropEffect: "" };
+    const header = (id: string) => screen.getByTestId(`space-${id}`).querySelector("h2")!;
+    fireEvent.dragStart(header(spaceB.id), { dataTransfer });
+    fireEvent.dragOver(header(spaceA.id), { dataTransfer });
+    fireEvent.drop(header(spaceA.id), { dataTransfer });
+    expect(order()).toEqual([`space-${spaceB.id}`, `space-${spaceA.id}`]);
+  });
+});

@@ -2,6 +2,7 @@
 // Módulo puro (sem `electron`): `buildSpawnPlan` não toca em disco; `materialize` usa só node:fs.
 
 import { existsSync } from "node:fs";
+import { isBash, resolveShell } from "./shell.js";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -304,7 +305,13 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
     env.APPDATA = p.join(root, "AppData", "Roaming");
     env.LOCALAPPDATA = p.join(root, "AppData", "Local");
     env.PATH = spacePath([], processPath(o.processEnv), ";");
-    shellArgs = ["-NoLogo", "-NoExit", "-File", p.join(root, "multishell-profile.ps1")];
+    if (isBash(o.userShell)) {
+      // Sem CHERE_INVOKING o login do Git Bash faz `cd $HOME` e ignora o cwd.
+      env.CHERE_INVOKING = "1";
+      env.MSYSTEM = o.processEnv.MSYSTEM || "MINGW64";
+    } else {
+      shellArgs = ["-NoLogo", "-NoExit", "-File", p.join(root, "multishell-profile.ps1")];
+    }
   } else {
     const config = p.join(root, ".config");
     env.XDG_CONFIG_HOME = config;
@@ -326,6 +333,9 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
       ":",
     );
   }
+
+  // Login lê $HOME/.bash_profile, que o materialize grava na raiz do espaço.
+  if (isBash(o.userShell)) shellArgs = ["--login", "-i"];
 
   const secret_keys: string[] = [];
   // custom_env do espaço.
@@ -368,6 +378,25 @@ export function zshrcContent(space: Space, realHomeDir: string): string {
   s += "# OSC 7: informa o cwd ao Multishell a cada prompt.\n";
   s += `__multishell_osc7() { ${OSC7_ZSH} }\n`;
   s += "precmd_functions+=(__multishell_osc7)\n";
+  return s;
+}
+
+// Git Bash: `pwd -W` dá C:/x, igual ao que o prompt do PowerShell emite.
+const OSC7_BASH =
+  'if [ -n "$MSYSTEM" ]; then __ms_pwd="/$(pwd -W)"; else __ms_pwd="$PWD"; fi; ' +
+  `printf '\\e]7;file://%s%s\\a' "$HOSTNAME" "$__ms_pwd"`;
+
+export function bashProfileContent(space: Space, realHomeDir: string): string {
+  // O bash do Git aceita C:/x. Barra invertida viraria escape.
+  const real = realHomeDir.replace(/\\/g, "/");
+  let s = "# Gerado pelo Multishell. Edite ~/.bashrc.local no espaço.\n";
+  if (space.security.load_user_shell_profile) {
+    s += `[ -f "${real}/.bashrc" ] && source "${real}/.bashrc"\n`;
+  }
+  s += '[ -f "$HOME/.bashrc.local" ] && source "$HOME/.bashrc.local"\n';
+  s += "# OSC 7: informa o cwd ao Multishell a cada prompt.\n";
+  s += `__multishell_osc7() { ${OSC7_BASH}; }\n`;
+  s += 'PROMPT_COMMAND="__multishell_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"\n';
   return s;
 }
 
@@ -480,6 +509,7 @@ export async function materialize(space: Space, provider: Provider | null, realH
     await fs.writeFile(path.join(zsh, ".zshrc"), zshrcContent(space, realHomeDir), "utf8");
     await fs.writeFile(path.join(zsh, ".zshenv"), zshenvContent(space), "utf8");
   }
+  await fs.writeFile(path.join(root, ".bash_profile"), bashProfileContent(space, realHomeDir), "utf8");
 
   const sec = space.security;
   if (osName === "darwin") {
@@ -511,6 +541,7 @@ export async function spawnPlanFor(
   provider: Provider | null,
   cwd: string | null,
   defaultCwd?: string | null,
+  shellSetting?: string | null,
 ): Promise<SpawnPlan> {
   const osName = currentOs();
   const home = realHome();
@@ -521,7 +552,7 @@ export async function spawnPlanFor(
     cwd,
     realHome: home,
     os: osName,
-    userShell: defaultShell(),
+    userShell: resolveShell({ setting: shellSetting, os: osName, env: process.env, fallback: defaultShell() }),
     processEnv: process.env,
     defaultCwd,
   });

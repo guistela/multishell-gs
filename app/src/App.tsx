@@ -12,6 +12,7 @@ import { SessionBar } from "./features/sessions/SessionBar";
 import SettingsView from "./features/settings/SettingsView";
 import { QuickSearchModal } from "./features/sessions/QuickSearchModal";
 import { bridge } from "./bridge";
+import { UpdateNotice } from "./features/updates/UpdateNotice";
 import { useAppStore } from "./store";
 import "./App.css";
 
@@ -116,6 +117,7 @@ function MainApp() {
   // Terminal encerrado continua na aba até o usuário fechar: a contagem separa vivo de morto.
   const liveSessions = activeSpaceSessions.filter((s) => s.exit_code === undefined || s.exit_code === null);
   const exitedSessions = activeSpaceSessions.filter((s) => s.exit_code !== undefined && s.exit_code !== null);
+  const hiddenSessions = activeSpaceSessions.filter((s) => s.hidden);
 
   // A statusbar diz o que o espaço realmente expõe do host, em vez de prometer isolamento total.
   const sec = activeSpace?.security;
@@ -178,6 +180,16 @@ function MainApp() {
             {liveSessions.length} {liveSessions.length === 1 ? "terminal" : "terminais"}
             {exitedSessions.length > 0 && ` (${exitedSessions.length} encerrado${exitedSessions.length > 1 ? "s" : ""})`}
           </span>
+          {hiddenSessions.length > 0 && (
+            <button
+              type="button"
+              className="status-link"
+              title={t("layout.showHidden")}
+              onClick={() => useAppStore.getState().patchSessions(Object.fromEntries(hiddenSessions.map((s) => [s.id, { hidden: false }])))}
+            >
+              {t("layout.hiddenCount", { count: hiddenSessions.length })}
+            </button>
+          )}
           <span className="status-sep">/</span>
           <span className="status-item"><strong>{activeSpace?.name ?? "—"}</strong></span>
           <span className="status-sep">/</span>
@@ -190,6 +202,7 @@ function MainApp() {
           </span>
         </div>
         <div className="statusbar-right">
+          <UpdateNotice />
           <span>Multishell v{version}</span>
         </div>
       </footer>

@@ -6,10 +6,20 @@ export const api = {
   storeGet: <T,>(name: string) => invoke<T | null>("store_get", { name }),
   storeSet: (name: string, value: unknown) => invoke<void>("store_set", { name, value }),
 
+  /** Abre "Salvar como". Devolve o caminho ou null se cancelado. */
+  settingsExport: () => invoke<string | null>("settings_export", {}),
+  /** Abre "Abrir", faz backup e mescla. null se cancelado. */
+  settingsImport: () => invoke<SettingsImportResult | null>("settings_import", {}),
+  updateCheck: () => invoke<UpdateInfo | null>("update_check", {}),
+  updateIgnore: (version: string) => invoke<void>("update_ignore", { version }),
+  /** O main só abre URL do repositório do Multishell. */
+  updateOpen: (url: string) => invoke<void>("update_open", { url }),
+
   pickDirectory: (defaultPath?: string) => invoke<string | null>("directory_pick", { defaultPath }),
   spacesList: () => invoke<Space[]>("spaces_list"),
   spaceSave: (space: Space) => invoke<Space>("space_save", { space }),
   spaceDelete: (spaceId: string) => invoke<void>("space_delete", { spaceId }),
+  spacesReorder: (ids: string[]) => invoke<Space[]>("spaces_reorder", { ids }),
   spaceOpenFolder: (spaceId: string) => invoke<void>("space_open_folder", { spaceId }),
   pathOpen: (path: string) => invoke<void>("path_open", { path }),
   pathOpenEditor: (path: string) => invoke<void>("path_open_editor", { path }),
@@ -65,6 +75,19 @@ export const api = {
 };
 
 /** Estado de login de uma CLI dentro do espaço. */
+export interface SettingsImportResult {
+  spaces: number;
+  providers: number;
+  mcp: number;
+  backup: string;
+}
+
+export interface UpdateInfo {
+  version: string;
+  download_url: string;
+  release_url: string;
+}
+
 export interface AuthSessionStatus {
   id: string;
   name: string;

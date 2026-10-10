@@ -1,11 +1,24 @@
 {
   "title": "Settings",
   "close": "Close",
-  "tabs": { "providers": "Providers", "spaces": "Spaces", "terminal": "Terminal", "mcp": "MCP" },
+  "tabs": { "providers": "Providers", "spaces": "Spaces", "terminal": "Terminal", "mcp": "MCP", "transfer": "Transfer" },
   "keyValue": { "key": "Key", "value": "Value", "add": "Add", "remove": "Remove" },
+  "transfer": {
+    "intro": "Take spaces, providers, MCP servers, layouts and appearance to another machine.",
+    "secrets": "Secrets are not in the file. Values marked as secret and MCP server env go out empty. Fill them again on the other machine.",
+    "export": "Export settings",
+    "import": "Import settings",
+    "exported": "Exported to {{path}}",
+    "imported": "Imported: {{spaces}} spaces, {{providers}} providers, {{mcp}} MCP servers. Previous state backed up to {{backup}}"
+  },
   "terminal": {
     "shell": "Shell",
-    "shellHint": "Empty = system default",
+    "shellHint": "E.g. /bin/bash",
+    "shellAuto": "Automatic ({{shell}})",
+    "shellGitBash": "Git Bash",
+    "shellGitBashMissing": "Git Bash (not found)",
+    "shellCustom": "Custom path",
+    "shellPath": "Shell path",
     "defaultCwd": "Start folder",
     "fontFamily": "Font",
     "fontSize": "Size",

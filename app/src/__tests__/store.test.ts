@@ -259,3 +259,54 @@ describe("session interruption protection", () => {
     expect(useAppStore.getState().sessions[0]).toMatchObject({ cwd: "/project", harness_running: false, auto_start_harness: false });
   });
 });
+
+describe("store: ordem e visibilidade", () => {
+  const lastUi = () => { const calls = invokeMock.mock.calls.filter((c) => c[0] === "store_set" && c[1].name === "ui-state"); return calls[calls.length - 1][1].value; };
+
+  it("moveSession para frente ocupa o lugar do alvo e persiste a ordem", () => {
+    const a = useAppStore.getState().addSession({ space_id: spaceA.id });
+    const b = useAppStore.getState().addSession({ space_id: spaceA.id });
+    const c = useAppStore.getState().addSession({ space_id: spaceA.id });
+    useAppStore.getState().moveSession(a.id, c.id);
+    expect(useAppStore.getState().sessions.map((x) => x.id)).toEqual([b.id, c.id, a.id]);
+    expect(lastUi().sessions.map((x: { id: string }) => x.id)).toEqual([b.id, c.id, a.id]);
+  });
+
+  it("moveSession para trás ocupa o lugar do alvo", () => {
+    const a = useAppStore.getState().addSession({ space_id: spaceA.id });
+    const b = useAppStore.getState().addSession({ space_id: spaceA.id });
+    const c = useAppStore.getState().addSession({ space_id: spaceA.id });
+    useAppStore.getState().moveSession(c.id, a.id);
+    expect(useAppStore.getState().sessions.map((x) => x.id)).toEqual([c.id, a.id, b.id]);
+  });
+
+  it("moveSession ignora alvo de outro espaço", () => {
+    const a = useAppStore.getState().addSession({ space_id: spaceA.id });
+    const b = useAppStore.getState().addSession({ space_id: spaceB.id });
+    useAppStore.getState().moveSession(a.id, b.id);
+    expect(useAppStore.getState().sessions.map((x) => x.id)).toEqual([a.id, b.id]);
+  });
+
+  it("shiftSession troca com o vizinho do mesmo espaço, pulando outros espaços", () => {
+    const a = useAppStore.getState().addSession({ space_id: spaceA.id });
+    const x = useAppStore.getState().addSession({ space_id: spaceB.id });
+    const b = useAppStore.getState().addSession({ space_id: spaceA.id });
+    useAppStore.getState().shiftSession(a.id, 1);
+    expect(useAppStore.getState().sessions.map((s) => s.id)).toEqual([x.id, b.id, a.id]);
+    useAppStore.getState().shiftSession(a.id, 1);
+    expect(useAppStore.getState().sessions.map((s) => s.id)).toEqual([x.id, b.id, a.id]);
+  });
+
+  it("hidden persiste no ui-state", () => {
+    const a = useAppStore.getState().addSession({ space_id: spaceA.id });
+    useAppStore.getState().updateSession(a.id, { hidden: true });
+    expect(lastUi().sessions[0].hidden).toBe(true);
+  });
+
+  it("moveSpace reordena os espaços e grava a ordem no main", () => {
+    invokeMock.mockImplementation(async (cmd: string) => (cmd === "spaces_reorder" ? [spaceB, spaceA] : undefined));
+    useAppStore.getState().moveSpace(spaceA.id, spaceB.id);
+    expect(useAppStore.getState().spaces.map((s) => s.id)).toEqual([spaceB.id, spaceA.id]);
+    expect(invokeMock).toHaveBeenCalledWith("spaces_reorder", { ids: [spaceB.id, spaceA.id] });
+  });
+});

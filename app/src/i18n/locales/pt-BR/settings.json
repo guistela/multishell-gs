@@ -1,11 +1,24 @@
 {
   "title": "Configurações",
   "close": "Fechar",
-  "tabs": { "providers": "Providers", "spaces": "Espaços", "terminal": "Terminal", "mcp": "MCP" },
+  "tabs": { "providers": "Providers", "spaces": "Espaços", "terminal": "Terminal", "mcp": "MCP", "transfer": "Transferir" },
   "keyValue": { "key": "Chave", "value": "Valor", "add": "Adicionar", "remove": "Remover" },
+  "transfer": {
+    "intro": "Leve espaços, providers, servidores MCP, layouts e aparência para outra máquina.",
+    "secrets": "Os segredos não vão no arquivo. Valores marcados como segredo e o env dos servidores MCP saem vazios. Na outra máquina, preencha de novo.",
+    "export": "Exportar configurações",
+    "import": "Importar configurações",
+    "exported": "Exportado em {{path}}",
+    "imported": "Importado: {{spaces}} espaços, {{providers}} providers, {{mcp}} servidores MCP. Backup do estado anterior em {{backup}}"
+  },
   "terminal": {
     "shell": "Shell",
-    "shellHint": "Vazio = padrão do sistema",
+    "shellHint": "Ex.: /bin/bash",
+    "shellAuto": "Automático ({{shell}})",
+    "shellGitBash": "Git Bash",
+    "shellGitBashMissing": "Git Bash (não encontrado)",
+    "shellCustom": "Caminho personalizado",
+    "shellPath": "Caminho do shell",
     "defaultCwd": "Pasta inicial",
     "fontFamily": "Fonte",
     "fontSize": "Tamanho",

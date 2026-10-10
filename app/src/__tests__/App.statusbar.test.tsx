@@ -54,4 +54,13 @@ describe("statusbar: contagem de terminais vivos", () => {
     render(<App />);
     expect(screen.getByTestId("status-terminals")).toHaveTextContent(/1 encerrado/i);
   });
+
+  it("mostra quantos terminais estão ocultos e o botão os traz de volta", () => {
+    useAppStore.setState({ sessions: [viva, { ...viva, id: "s3", title: "C", hidden: true }], loadError: null });
+    render(<App />);
+    const el = screen.getByRole("button", { name: "1 oculto" });
+    act(() => el.click());
+    expect(useAppStore.getState().sessions.some((s) => s.hidden)).toBe(false);
+    expect(screen.queryByRole("button", { name: /oculto/ })).not.toBeInTheDocument();
+  });
 });

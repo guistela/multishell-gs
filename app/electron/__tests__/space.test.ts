@@ -5,6 +5,7 @@ import * as path from "node:path";
 import {
   PERSONAL_ID,
   WORK_ID,
+  bashProfileContent,
   buildSpawnPlan,
   defaultSpaces,
   makeDirectoryName,
@@ -530,5 +531,63 @@ describe("materialize: keychain do espaço", () => {
   it("no windows não mexe em keychain", async () => {
     await materialize(espaco(false), null, home, "win32");
     expect(fs.existsSync(path.join(home, ".multishell", "profiles", "cliente-x", "Library"))).toBe(false);
+  });
+});
+
+describe("space.buildSpawnPlan (bash)", () => {
+  it("Git Bash no windows abre login interativo na pasta pedida", () => {
+    const plan = buildSpawnPlan(
+      opts({ realHome: "C:\\Users\\f", os: "win32", userShell: "C:\\Program Files\\Git\\bin\\bash.exe", cwd: "C:\\proj", processEnv: { PATH: "C:\\bin" } }),
+    );
+    expect(plan.shell).toBe("C:\\Program Files\\Git\\bin\\bash.exe");
+    expect(plan.shell_args).toEqual(["--login", "-i"]);
+    expect(plan.env.CHERE_INVOKING).toBe("1");
+    expect(plan.env.MSYSTEM).toBe("MINGW64");
+    expect(plan.env.USERPROFILE).toBe("C:\\Users\\f\\.multishell\\profiles\\cliente-x");
+  });
+
+  it("respeita MSYSTEM já definido", () => {
+    const plan = buildSpawnPlan(opts({ os: "win32", realHome: "C:\\Users\\f", userShell: "bash.exe", processEnv: { PATH: "C:\\bin", MSYSTEM: "UCRT64" } }));
+    expect(plan.env.MSYSTEM).toBe("UCRT64");
+  });
+
+  it("bash no mac também abre como login", () => {
+    const plan = buildSpawnPlan(opts({ userShell: "/bin/bash" }));
+    expect(plan.shell_args).toEqual(["--login", "-i"]);
+    expect("CHERE_INVOKING" in plan.env).toBe(false);
+  });
+});
+
+describe("space.bashProfileContent", () => {
+  it("só carrega o .bashrc real quando habilitado", () => {
+    expect(bashProfileContent(spaceFechado(), "C:\\Users\\f")).not.toContain(".bashrc\"");
+    const open = spaceFechado();
+    open.security.load_user_shell_profile = true;
+    expect(bashProfileContent(open, "C:\\Users\\f")).toContain('source "C:/Users/f/.bashrc"');
+  });
+
+  it("carrega .bashrc.local e emite OSC 7 no PROMPT_COMMAND", () => {
+    const c = bashProfileContent(spaceFechado(), "/Users/f");
+    expect(c).toContain('"$HOME/.bashrc.local"');
+    expect(c).toContain("PROMPT_COMMAND");
+    expect(c).toContain("]7;file://");
+    expect(c).toContain("pwd -W");
+  });
+
+  it("materialize grava .bash_profile no windows e no mac", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "multishell-bash-"));
+    const saved = process.env.HOME;
+    process.env.HOME = tmp;
+    try {
+      for (const o of ["win32", "darwin"] as const) {
+        const s = spaceFechado();
+        s.security.share_keychain = true;
+        await materialize(s, null, tmp, o);
+        expect(fs.readFileSync(path.join(spaceRoot(s), ".bash_profile"), "utf8")).toContain("PROMPT_COMMAND");
+      }
+    } finally {
+      process.env.HOME = saved;
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

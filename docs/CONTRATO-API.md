@@ -54,6 +54,7 @@ Pasta de config do provider dentro do espaço: `<raiz>/providers/<slug do provid
 | `spaces_list` | | `Space[]` (cria os 2 padrão se vazio: Pessoal/personal, Trabalho/work) | rust-core |
 | `space_save` | `space: Space` | `Space` | rust-core |
 | `space_delete` | `space_id` | `void` (não apaga a pasta) | rust-core |
+| `spaces_reorder` | `ids: string[]` | `Space[]` na ordem gravada (ids ausentes ficam no fim, na ordem antiga) | electron |
 | `space_open_folder` | `space_id` | `void` | rust-core |
 | `space_spawn_plan` | `space_id, provider_id: string \| null, cwd: string \| null` | `SpawnPlan` | rust-core |
 | `providers_list` | | `Provider[]` (presets se vazio) | rust-core |
@@ -66,8 +67,14 @@ Pasta de config do provider dentro do espaço: `<raiz>/providers/<slug do provid
 | `secret_delete` | `space_id, key` | `void` | rust-secrets |
 | `migrate_from_swift` | | `MigrationReport { spaces: number, providers: number, sessions: number, notes: string[] }` | rust-secrets |
 | `pty_spawn/pty_write/pty_resize/pty_kill/default_shell` | | | existe |
+| `shell_options` | | `{ default: string, git_bash: string \| null }` | existe |
+| `update_check` | | `{ version, download_url, release_url } \| null` | existe |
+| `update_ignore` | `version` | `void` | existe |
+| `update_open` | `url` (só `github.com/guistela/multishell-gs`) | `void` | existe |
+| `settings_export` | | `string \| null` (caminho gravado) | existe |
+| `settings_import` | | `{ spaces, providers, mcp, backup } \| null` | existe |
 
-`space_spawn_plan` monta o env (HOME/XDG/ZDOTDIR no mac; USERPROFILE/APPDATA/LOCALAPPDATA/`-NoProfile` no windows), gera o rc do shell no espaço, aplica `security`, injeta `custom_env` e, se `provider_id`, `config_env_key` + `extra_env` do provider.
+`space_spawn_plan` monta o env (HOME/XDG/ZDOTDIR no mac; USERPROFILE/APPDATA/LOCALAPPDATA/`-NoProfile` no windows), gera o rc do shell no espaço (`.zshrc`, `.bash_profile` ou `.ps1`), usa o `shell` das configurações (`git-bash` = bash.exe do Git no Windows), aplica `security`, injeta `custom_env` e, se `provider_id`, `config_env_key` + `extra_env` do provider.
 
 Valor de segredo nunca entra no plano. As chaves marcadas como `is_secret` saem em `secret_keys`; `pty_spawn` recebe `space_id` (e `provider_id`) e lê o keyring no processo main, antes de criar o shell. Assim nenhum segredo trafega pelo renderer.
 
@@ -203,7 +210,6 @@ Regras do front:
 | **Port Manager** | `app/electron/port-manager.ts` | Alocação dinâmica de portas efêmeras e prevenção de conflitos de porta entre espaços. |
 | **CI Daemon** | `app/electron/ci-daemon.ts` | Runner de testes em background que notifica agentes via Agent Bus. |
 | **Voice Gateway** | `app/electron/voice-gateway.ts` | Gateway para transcrição e execução de comandos de voz no terminal ou harness. |
-| **Task Sync (Azure/Jira)** | `app/electron/task-sync.ts` | Sincronizador de itens de trabalho do Azure DevOps e Jira com Kanban multiagente. |
 | **PII Sanitizer** | `app/electron/pii-sanitizer.ts` | Mascaramento de CPFs, CNPJs, cartões, e-mails e chaves privadas em tempo real. |
 | **Loop Watchdog** | `app/electron/loop-watchdog.ts` | Monitor de flapping e loops de erro consecutivos no shell para prevenir gasto de tokens. |
 | **Mock Server** | `app/electron/mock-server.ts` | Servidor HTTP embutido zero-dep para endpoints de mock rápidos criados por agentes. |

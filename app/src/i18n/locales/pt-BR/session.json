@@ -80,7 +80,14 @@
     "focus": "Expandir {{title}}",
     "restore": "Minimizar tela cheia (voltar para grade)",
     "close": "Fechar {{title}}",
-    "select": "Selecionar {{title}}"
+    "select": "Selecionar {{title}}",
+    "moveLeft": "Mover para a esquerda",
+    "moveRight": "Mover para a direita",
+    "hide": "Ocultar desta visão",
+    "show": "Mostrar",
+    "hiddenCount_one": "{{count}} oculto",
+    "hiddenCount_other": "{{count}} ocultos",
+    "showHidden": "Mostrar os terminais ocultos"
   },
   "home": {
     "caption": "Um lugar para seus terminais",
@@ -94,6 +101,8 @@
     "shortcutHint": "para abrir um terminal"
   },
   "menu": {
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo",
     "newSession": "Nova sessão",
     "newInSpace": "Novo terminal neste espaço",
     "newInFolder": "Novo terminal em pasta…",
@@ -122,7 +131,6 @@
     "layout": "Visualização",
     "theme": "Tema deste terminal",
     "themeDefault": "Padrão do app",
-    "kanbanTask": "Nova tarefa no Kanban com a seleção",
     "pasteClipboard": "Colar do clipboard (imagem ou texto)"
   },
   "search": {

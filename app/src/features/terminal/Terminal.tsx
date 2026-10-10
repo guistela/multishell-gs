@@ -7,7 +7,6 @@ import { api } from "../../api";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { useAppStore } from "../../store";
 import { themeFor } from "./themes";
-import { addTaskFromTerminal } from "../agents/kanbanStore";
 import { forgetSession, markOutput } from "./agentActivity";
 import { cleanSelection } from "./selection";
 import { SelectionBar } from "./SelectionBar";
@@ -234,16 +233,6 @@ export function Terminal({ session, onOpenSettings }: Props) {
       label: t("menu.pasteClipboard"),
       icon: "🖼️",
       onClick: () => void pasteFromClipboard(sessionId),
-    },
-    {
-      id: "term-kanban-task",
-      label: t("menu.kanbanTask"),
-      icon: "🗂",
-      disabled: !selection.trim(),
-      onClick: () => {
-        // A tarefa nasce do que está na tela e já fica com este terminal como responsável.
-        void addTaskFromTerminal({ spaceId: session.space_id, sessionId, selection });
-      },
     },
     {
       id: "term-select-all",

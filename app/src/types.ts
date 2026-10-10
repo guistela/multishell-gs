@@ -44,6 +44,8 @@ export interface Session {
   theme?: string;
   /** true enquanto vive numa janela própria (Fase 8). Persiste em ui-state. */
   detached: boolean;
+  /** true = fora da grade e da lista. A aba fica e o processo continua. Persiste em ui-state. */
+  hidden?: boolean;
 }
 
 export interface WindowRole { role: "main" | "detached"; session_id?: string }

@@ -194,11 +194,9 @@ describe("workspace layouts", () => {
     expect(screen.getByText("Abrir central de handoff")).toBeInTheDocument();
   });
 
-  it("permite alternar para a aba de Kanban do espaço", () => {
+  it("não tem aba de Kanban", () => {
     render(<Workspace />);
-    fireEvent.click(screen.getByRole("button", { name: /Kanban/i }));
-    expect(useAppStore.getState().workspaceTab).toBe("kanban");
-    expect(screen.getByRole("button", { name: /Nova Tarefa/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Kanban/i })).not.toBeInTheDocument();
   });
 
   it("permite alternar para a aba de Contas do espaço", async () => {
@@ -206,5 +204,79 @@ describe("workspace layouts", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Contas$/ }));
     expect(useAppStore.getState().workspaceTab).toBe("accounts");
     expect(await screen.findByTestId("accounts-scope-hint")).toBeInTheDocument();
+  });
+});
+
+describe("workspace: ordem e visibilidade", () => {
+  const tabs = () => screen.getAllByRole("tab").map((x) => x.getAttribute("title"));
+  const articles = () => screen.getAllByRole("article").map((x) => x.getAttribute("aria-label"));
+
+  it("terminal oculto sai da grade e da lista, mas a aba fica esmaecida", () => {
+    useAppStore.setState({ sessions: [a, { ...b, hidden: true }, c] });
+    render(<Workspace />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Visualização" }), { target: { value: "grid" } });
+    expect(articles()).toEqual(["Alpha"]);
+    expect(screen.getByTestId("terminal-b")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Beta/ })).toHaveClass("hidden-from-view");
+    fireEvent.change(screen.getByRole("combobox", { name: "Visualização" }), { target: { value: "list" } });
+    expect(screen.queryByRole("button", { name: "Selecionar Beta" })).not.toBeInTheDocument();
+  });
+
+  it("o menu da aba oculta e mostra o terminal", () => {
+    render(<Workspace />);
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /Beta/ }));
+    fireEvent.click(screen.getByText("Ocultar desta visão"));
+    expect(useAppStore.getState().sessions.find((s) => s.id === "b")?.hidden).toBe(true);
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /Beta/ }));
+    fireEvent.click(screen.getByText("Mostrar"));
+    expect(useAppStore.getState().sessions.find((s) => s.id === "b")?.hidden).toBe(false);
+  });
+
+  it("o menu da aba move o terminal para a direita e para a esquerda", () => {
+    render(<Workspace />);
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /Alpha/ }));
+    fireEvent.click(screen.getByText("Mover para a direita"));
+    expect(tabs()).toEqual(["Beta", "Alpha"]);
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /Alpha/ }));
+    fireEvent.click(screen.getByText("Mover para a esquerda"));
+    expect(tabs()).toEqual(["Alpha", "Beta"]);
+  });
+
+  it("o menu do tile também move o terminal", () => {
+    useAppStore.setState({ spaceLayouts: { [spaceA.id]: "grid" } });
+    render(<Workspace />);
+    const header = screen.getByRole("article", { name: "Alpha" }).querySelector("header")!;
+    fireEvent.contextMenu(header);
+    fireEvent.click(screen.getByText("Mover para a direita"));
+    expect(articles()).toEqual(["Beta", "Alpha"]);
+  });
+
+  it("arrastar uma aba sobre outra troca a posição", () => {
+    render(<Workspace />);
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (k: string, v: string) => data.set(k, v), getData: (k: string) => data.get(k) ?? "", types: ["application/x-multishell-tab"], effectAllowed: "", dropEffect: "" };
+    fireEvent.dragStart(screen.getByRole("tab", { name: /Alpha/ }), { dataTransfer });
+    fireEvent.dragOver(screen.getByRole("tab", { name: /Beta/ }), { dataTransfer });
+    fireEvent.drop(screen.getByRole("tab", { name: /Beta/ }), { dataTransfer });
+    expect(tabs()).toEqual(["Beta", "Alpha"]);
+  });
+
+  it("arrastar o cabeçalho de um tile sobre outro troca a posição", () => {
+    useAppStore.setState({ spaceLayouts: { [spaceA.id]: "grid" } });
+    render(<Workspace />);
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (k: string, v: string) => data.set(k, v), getData: (k: string) => data.get(k) ?? "", types: ["application/x-multishell-tab"], effectAllowed: "", dropEffect: "" };
+    fireEvent.dragStart(screen.getByRole("article", { name: "Beta" }).querySelector("header")!, { dataTransfer });
+    fireEvent.drop(screen.getByRole("article", { name: "Alpha" }).querySelector("header")!, { dataTransfer });
+    expect(articles()).toEqual(["Beta", "Alpha"]);
+  });
+
+  it("clicar numa aba oculta mostra o terminal de volta", () => {
+    useAppStore.setState({ sessions: [a, { ...b, hidden: true }, c], spaceLayouts: { [spaceA.id]: "grid" } });
+    render(<Workspace />);
+    fireEvent.click(screen.getByRole("tab", { name: /Beta/ }));
+    expect(useAppStore.getState().sessions.find((s) => s.id === "b")?.hidden).toBe(false);
+    expect(useAppStore.getState().selectedSessionId).toBe("b");
+    expect(articles()).toEqual(["Alpha", "Beta"]);
   });
 });

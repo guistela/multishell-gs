@@ -4,10 +4,11 @@ import ProvidersTab from "../providers/ProvidersTab";
 import SpacesTab from "../spaces/SpacesTab";
 import McpTab from "./McpTab";
 import TerminalTab from "./TerminalTab";
+import TransferTab from "./TransferTab";
 import "./settings.css";
 
-export type SettingsTab = "providers" | "spaces" | "terminal" | "mcp";
-const TABS: SettingsTab[] = ["providers", "spaces", "terminal", "mcp"];
+export type SettingsTab = "providers" | "spaces" | "terminal" | "mcp" | "transfer";
+const TABS: SettingsTab[] = ["providers", "spaces", "terminal", "mcp", "transfer"];
 
 interface Props {
   open: boolean;
@@ -48,6 +49,7 @@ export default function SettingsView({ open, onClose, initialTab = "providers", 
           {tab === "spaces" && <SpacesTab initialCreate={initialCreateSpace} />}
           {tab === "terminal" && <TerminalTab />}
           {tab === "mcp" && <McpTab />}
+          {tab === "transfer" && <TransferTab />}
         </div>
       </div>
     </div>

@@ -27,7 +27,7 @@ const { ipcHandles, claude, spaceA, spacesRoot, spawnPlanFor, secrets } = vi.hoi
 vi.mock("electron", () => ({
   ipcMain: { handle: (name: string, fn: (e: unknown, args: unknown) => unknown) => ipcHandles.set(name, fn) },
   shell: { openPath: vi.fn(async () => "") },
-  app: { getPath: () => "/tmp/unused" },
+  app: { getPath: () => "/tmp/unused", getVersion: () => "0.0.0" },
 }));
 
 vi.mock("../provider", () => ({
@@ -47,6 +47,7 @@ vi.mock("../space", () => ({
     return out;
   },
   spaceRoot: (s: any) => `${spacesRoot}/${s.directory_name}`,
+  normalizeSpace: (s: any) => ({ ...s, custom_env: s.custom_env ?? [], base_path: s.base_path ?? null }),
   realHome: () => "/Users/fulano",
   dedupePathList: (entries: string[]) => [...new Set(entries.map((e) => e.trim()).filter(Boolean))],
   secretEnvKeys: (space: any, provider: any) => [
@@ -163,6 +164,19 @@ describe("spaces", () => {
     expect(new Store(dir).get("spaces")).toEqual([]);
   });
 
+  it("spaces_reorder grava a ordem pedida e mantém os ids que faltam no fim", async () => {
+    const store = new Store(dir);
+    store.set("spaces", [{ ...spaceA, id: "a" }, { ...spaceA, id: "b" }, { ...spaceA, id: "c" }]);
+    h = createHandlers({ store, pty: {} as any, userDataDir: dir, openPath });
+    const out = (await call("spaces_reorder", { ids: ["c", "a", "x"] })) as any[];
+    expect(out.map((s) => s.id)).toEqual(["c", "a", "b"]);
+    expect((store.get("spaces") as any[]).map((s) => s.id)).toEqual(["c", "a", "b"]);
+  });
+
+  it("spaces_reorder rejeita ids que não são lista", async () => {
+    await expect(async () => call("spaces_reorder", { ids: "a" })).rejects.toThrow(/ids/);
+  });
+
   it("space_open_folder abre spaceRoot", async () => {
     await call("space_open_folder", { spaceId: "sp-a" });
     expect(openPath).toHaveBeenCalledWith(`${spacesRoot}/personal`);
@@ -238,7 +252,7 @@ describe("spaces", () => {
     const plan: any = await call("space_spawn_plan", { spaceId: "sp-a", providerId: "pv-claude", cwd: "/tmp" });
     expect(plan.cwd).toBe("/tmp");
     expect(plan.env.PROVIDER).toBe("pv-claude");
-    expect(spawnPlanFor).toHaveBeenCalledWith(spaceA, claude, "/tmp", null);
+    expect(spawnPlanFor).toHaveBeenCalledWith(spaceA, claude, "/tmp", null, null);
     await expect(async () => call("space_spawn_plan", { spaceId: "nope", providerId: null, cwd: null })).rejects.toThrow(/espaço/);
     await expect(async () => call("space_spawn_plan", { spaceId: "sp-a", providerId: "nope", cwd: null })).rejects.toThrow(/provider/);
   });
@@ -248,7 +262,15 @@ describe("spaces", () => {
     store.set("settings", { shell: null, default_cwd: "/Users/gs/dev", font_family: "Menlo", font_size: 13, theme: "dark", language: "pt-BR" });
     h = createHandlers({ store, pty: {} as any, userDataDir: dir, openPath });
     await call("space_spawn_plan", { spaceId: "sp-a", providerId: null, cwd: null });
-    expect(spawnPlanFor).toHaveBeenLastCalledWith(spaceA, null, null, "/Users/gs/dev");
+    expect(spawnPlanFor).toHaveBeenLastCalledWith(spaceA, null, null, "/Users/gs/dev", null);
+  });
+
+  it("space_spawn_plan repassa o shell das configurações", async () => {
+    const store = new Store(dir);
+    store.set("settings", { shell: "git-bash", default_cwd: null, font_family: "Menlo", font_size: 13, theme: "dark", language: "pt-BR" });
+    h = createHandlers({ store, pty: {} as any, userDataDir: dir, openPath });
+    await call("space_spawn_plan", { spaceId: "sp-a", providerId: null, cwd: null });
+    expect(spawnPlanFor).toHaveBeenLastCalledWith(spaceA, null, null, null, "git-bash");
   });
 });
 
@@ -401,6 +423,12 @@ describe("pty e util", () => {
     await call("pty_kill", { sessionId: "s1" });
     expect(pty.kill).toHaveBeenCalledWith("s1");
     expect(await call("pty_cwd", { sessionId: "s1" })).toBe("/x");
+  });
+
+  it("shell_options devolve o shell padrão e o Git Bash detectado", async () => {
+    const opts: any = await call("shell_options");
+    expect(typeof opts.default).toBe("string");
+    expect(opts.git_bash === null || typeof opts.git_bash === "string").toBe(true);
   });
 
   it("default_shell devolve string e log_front escreve em console.error", async () => {
@@ -715,5 +743,102 @@ describe("segredos não passam pelo renderer", () => {
   it("sessão sem space_id continua funcionando (shell simples)", async () => {
     await call("pty_spawn", { req: { session_id: "s3", shell: "/bin/zsh", env: { A: "1" } } });
     expect(ptySpy.spawn.mock.calls[0][1].env).toEqual({ A: "1" });
+  });
+});
+
+describe("aviso de nova versão", () => {
+  const release = {
+    tag_name: "v0.9.0", html_url: "https://github.com/guistela/multishell-gs/releases/tag/v0.9.0", draft: false, prerelease: false,
+    assets: [{ name: "Multishell-0.9.0-mac-arm64.dmg", browser_download_url: "https://github.com/guistela/multishell-gs/releases/download/v0.9.0/Multishell-0.9.0-mac-arm64.dmg" }],
+  };
+  const openExternal = vi.fn(async () => {});
+  const make = (fetchRelease: () => Promise<unknown>) =>
+    createHandlers({ store: new Store(dir), pty: {} as any, userDataDir: dir, openPath, openExternal, fetchRelease, appVersion: "0.1.11", platform: "darwin", arch: "arm64" });
+
+  it("update_check devolve a versão nova com o instalador certo", async () => {
+    h = make(async () => release);
+    expect(await call("update_check")).toEqual({
+      version: "0.9.0",
+      download_url: release.assets[0].browser_download_url,
+      release_url: release.html_url,
+    });
+  });
+
+  it("update_check engole erro de rede e devolve null", async () => {
+    h = make(async () => { throw new Error("offline"); });
+    expect(await call("update_check")).toBeNull();
+  });
+
+  it("update_ignore persiste e o próximo check não avisa", async () => {
+    h = make(async () => release);
+    await call("update_ignore", { version: "0.9.0" });
+    expect(await call("update_check")).toBeNull();
+    h = make(async () => release);
+    expect(await call("update_check")).toBeNull();
+  });
+
+  it("update_open só abre URL do repositório", async () => {
+    h = make(async () => release);
+    await call("update_open", { url: release.html_url });
+    expect(openExternal).toHaveBeenCalledWith(release.html_url);
+    await expect(async () => call("update_open", { url: "https://evil.example" })).rejects.toThrow(/URL/);
+    expect(openExternal).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("exportar e importar configurações", () => {
+  const exportFile = () => join(dir, "out", "multishell.json");
+  const make = (picks: { save?: string | null; open?: string | null } = {}) => {
+    const store = new Store(dir);
+    h = createHandlers({
+      store, pty: {} as any, userDataDir: dir, openPath, appVersion: "0.1.12",
+      pickSaveFile: async () => (picks.save === undefined ? exportFile() : picks.save),
+      pickOpenFile: async () => (picks.open === undefined ? exportFile() : picks.open),
+    });
+    return store;
+  };
+
+  it("settings_export grava o arquivo sem segredos e devolve o caminho", async () => {
+    const store = make();
+    store.set("spaces", [{ ...spaceA, custom_env: [{ key: "TOKEN", value: "segredo", is_secret: true }] }]);
+    store.set("mcp-servers", { "sp-a": [{ id: "m1", name: "gh", command: "npx", args: [], env: { GH: "ghp" }, enabled: true }] });
+    expect(await call("settings_export")).toBe(exportFile());
+    const text = readFileSync(exportFile(), "utf8");
+    expect(JSON.parse(text).format).toBe("multishell-settings");
+    expect(text).not.toContain("segredo");
+    expect(text).not.toContain("ghp");
+  });
+
+  it("settings_export cancelado devolve null", async () => {
+    make({ save: null });
+    expect(await call("settings_export")).toBeNull();
+  });
+
+  it("settings_import faz backup, mescla e devolve o resumo", async () => {
+    const store = make();
+    store.set("spaces", [spaceA]);
+    await call("settings_export");
+    const file = JSON.parse(readFileSync(exportFile(), "utf8"));
+    file.spaces.push({ ...spaceA, id: "sp-b", name: "Trabalho", directory_name: "trabalho" });
+    file.settings = { theme: "nord" };
+    writeFileSync(exportFile(), JSON.stringify(file));
+    store.set("settings", { shell: "git-bash", theme: "dark" });
+
+    const res: any = await call("settings_import");
+    expect(res.spaces).toBe(2);
+    expect(store.get<any[]>("spaces")!.map((s) => s.id)).toEqual(["sp-a", "sp-b"]);
+    expect(store.get("settings")).toEqual({ shell: "git-bash", theme: "nord" });
+    const backup = JSON.parse(readFileSync(res.backup, "utf8"));
+    expect(backup.settings).toEqual({ shell: "git-bash", theme: "dark" });
+  });
+
+  it("settings_import recusa arquivo estranho sem mexer em nada", async () => {
+    const store = make();
+    store.set("spaces", [spaceA]);
+    const bad = join(dir, "bad.json");
+    writeFileSync(bad, JSON.stringify({ format: "outro" }));
+    make({ open: bad });
+    await expect(async () => call("settings_import")).rejects.toThrow(/Multishell/);
+    expect(store.get<any[]>("spaces")!.map((s) => s.id)).toEqual(["sp-a"]);
   });
 });

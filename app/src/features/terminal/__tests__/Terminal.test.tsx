@@ -292,27 +292,14 @@ describe("Terminal: tema por sessão", () => {
   });
 });
 
-describe("Terminal: criar tarefa do Kanban a partir da seleção", () => {
-  it("cria a tarefa no espaço do terminal, atribuída a ele", async () => {
-    const stored: Record<string, any> = {};
-    invokeMock.mockImplementation(async (cmd: string, args?: any) => {
-      if (cmd === "space_spawn_plan") return plan;
-      if (cmd === "store_get" && args?.name === "kanban") return stored.kanban ?? null;
-      if (cmd === "store_set" && args?.name === "kanban") { stored.kanban = args.value; return undefined; }
-      return undefined;
-    });
-
+describe("Terminal: menu de contexto sem Kanban", () => {
+  it("não oferece criar tarefa do Kanban com a seleção", async () => {
+    invokeMock.mockImplementation(async (cmd: string) => (cmd === "space_spawn_plan" ? plan : undefined));
     const { container } = render(<Terminal session={session} />);
     await flush();
-    // A seleção é lida no render do menu; o contextMenu força esse render.
-    lastTerm().getSelection = () => "erro no teste de PTY\nstack trace aqui";
+    lastTerm().getSelection = () => "erro no teste de PTY";
     fireEvent.contextMenu(container.querySelector("article, div") ?? container.firstChild!);
-
-    fireEvent.click(await screen.findByText(/Nova tarefa no Kanban/i));
     await flush();
-
-    expect(stored.kanban[spaceA.id].tasks[0].title).toBe("erro no teste de PTY");
-    expect(stored.kanban[spaceA.id].tasks[0].assignee_session_id).toBe(session.id);
-    expect(stored.kanban[spaceA.id].tasks[0].details).toContain("stack trace");
+    expect(screen.queryByText(/Kanban/i)).not.toBeInTheDocument();
   });
 });

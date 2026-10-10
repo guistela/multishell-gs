@@ -18,6 +18,9 @@ export function useSpaceMenuItems({ space, onOpenSettings }: Props): MenuItem[] 
   const addSession = useAppStore((s) => s.addSession);
   const setSpaceLayout = useAppStore((s) => s.setSpaceLayout);
   const closeSpaceSessions = useAppStore((s) => s.closeSpaceSessions);
+  const spaces = useAppStore((s) => s.spaces);
+  const moveSpace = useAppStore((s) => s.moveSpace);
+  const pos = spaces.findIndex((s) => s.id === space.id);
 
   const spaceSessions = sessions.filter((s) => s.space_id === space.id);
   const currentLayout = layouts[space.id] || "single";
@@ -95,6 +98,21 @@ export function useSpaceMenuItems({ space, onOpenSettings }: Props): MenuItem[] 
           void setSpaceLayout(space.id, mode);
         },
       })),
+    },
+    { separator: true },
+    {
+      id: "move-space-up",
+      label: t("session:menu.moveUp"),
+      icon: "↑",
+      disabled: pos <= 0,
+      onClick: () => moveSpace(space.id, spaces[pos - 1].id),
+    },
+    {
+      id: "move-space-down",
+      label: t("session:menu.moveDown"),
+      icon: "↓",
+      disabled: pos < 0 || pos >= spaces.length - 1,
+      onClick: () => moveSpace(space.id, spaces[pos + 1].id),
     },
     { separator: true },
     {

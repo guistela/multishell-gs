@@ -1,10 +1,13 @@
 // Handlers dos commands do contrato. `createHandlers` é puro (testável sem electron);
 // `registerHandlers` liga cada um em `ipcMain.handle`.
-import { ipcMain, shell, dialog, clipboard, BrowserWindow, type WebContents } from "electron";
-import { isAbsolute, join } from "node:path";
-import { mkdirSync, statSync } from "node:fs";
+import { app, ipcMain, net, shell, dialog, clipboard, BrowserWindow, type WebContents } from "electron";
+import { dirname, isAbsolute, join } from "node:path";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { COMMANDS, EVENTS, type Command, type StoreChangedEvent, type WindowRole } from "./ipc";
 import { Store } from "./store";
+import { findGitBash } from "./shell";
+import { LATEST_RELEASE_API, isReleaseUrl, latestUpdate } from "./updates";
+import { buildExport, mergeImport, parseExport, type TransferData } from "./settings-transfer";
 import { PtyManager, defaultShell, type PtySender, type SpawnRequest } from "./pty";
 import { commandLine, normalizeProvider, presets, resumeLine, type Provider } from "./provider";
 import { dedupePathList, defaultSpaces, makeDirectoryName, realHome, secretEnvKeys, spaceRoot, spawnPlanFor, type Space } from "./space";
@@ -30,8 +33,12 @@ function spaceSubprocessPath(): string {
 }
 
 export const SPACES_STORE = "spaces";
+/** Versão de aviso ignorada pelo usuário. */
+export const UPDATES_STORE = "updates";
 export const MCP_STORE = "mcp-servers";
 export const PROVIDERS_STORE = "providers";
+export const LAYOUTS_STORE = "workspace-layouts";
+export const SETTINGS_STORE = "settings";
 
 export interface HandlerDeps {
   store: Store;
@@ -57,6 +64,18 @@ export interface HandlerDeps {
   collectGitFiles?: typeof collectGitChangedFiles;
   /** Evento para todas as janelas menos `except`. Padrão: `windows.broadcast`. Injetável para teste. */
   broadcast?: (channel: string, payload: unknown, except?: PtySender) => void;
+  /** JSON do último release no GitHub. Sem ele, `update_check` devolve sempre null. */
+  fetchRelease?: () => Promise<unknown>;
+  /** app.getVersion() */
+  appVersion?: string;
+  /** shell.openExternal. Só recebe URL do repositório (`isReleaseUrl`). */
+  openExternal?: (url: string) => Promise<void>;
+  platform?: NodeJS.Platform;
+  arch?: string;
+  /** Diálogo "Salvar como" do export. null = cancelado. */
+  pickSaveFile?: (defaultName: string, sender: PtySender) => Promise<string | null>;
+  /** Diálogo "Abrir" do import. null = cancelado. */
+  pickOpenFile?: (sender: PtySender) => Promise<string | null>;
 }
 
 export interface HandlerContext {
@@ -165,6 +184,14 @@ export function createHandlers(deps: HandlerDeps): Handlers {
     return defaults;
   };
 
+  const readTransfer = (): TransferData => ({
+    spaces: loadSpaces(),
+    providers: loadProviders(),
+    layouts: store.get<Record<string, unknown>>(LAYOUTS_STORE) ?? {},
+    mcp: store.get<Record<string, McpServerConfig[]>>(MCP_STORE) ?? {},
+    settings: store.get<Record<string, unknown>>(SETTINGS_STORE),
+  });
+
   return {
     store_get: ({ name }) => store.get(str(name, "name")),
     store_set: ({ name, value }, ctx) => {
@@ -215,6 +242,15 @@ export function createHandlers(deps: HandlerDeps): Handlers {
       const id = str(spaceId, "space_id");
       store.set(SPACES_STORE, loadSpaces().filter((s) => s.id !== id));
     },
+    spaces_reorder: ({ ids }) => {
+      if (!Array.isArray(ids)) throw new Error("ids inválidos");
+      const spaces = loadSpaces();
+      const rank = new Map(ids.filter((x): x is string => typeof x === "string").map((id, i) => [id, i]));
+      // Sort estável: quem não está em ids mantém a ordem relativa, no fim.
+      const next = [...spaces].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
+      store.set(SPACES_STORE, next);
+      return next;
+    },
     space_open_folder: async ({ spaceId }) => {
       const root = spaceRoot(findSpace(str(spaceId, "space_id")));
       mkdirSync(root, { recursive: true });
@@ -258,8 +294,8 @@ export function createHandlers(deps: HandlerDeps): Handlers {
         if (!provider) throw new Error(`provider não existe: ${providerId}`);
       }
       // A pasta padrão das configurações vale quando o espaço não define pasta base.
-      const settings = store.get<{ default_cwd?: string | null }>("settings");
-      return spawnPlanFor(space, provider, cwd ?? null, settings?.default_cwd?.trim() || null);
+      const settings = store.get<{ default_cwd?: string | null; shell?: string | null }>("settings");
+      return spawnPlanFor(space, provider, cwd ?? null, settings?.default_cwd?.trim() || null, settings?.shell?.trim() || null);
     },
 
     providers_list: () => loadProviders(),
@@ -373,6 +409,86 @@ export function createHandlers(deps: HandlerDeps): Handlers {
     },
     window_role: (_args, ctx): WindowRole => deps.windows?.roleOf(ctx.sender) ?? { role: "main" },
     default_shell: () => defaultShell(),
+    /** Grava as configurações num JSON portátil. Segredos ficam de fora. */
+    settings_export: async (_args, ctx) => {
+      if (!deps.pickSaveFile) throw new Error("diálogo de salvar indisponível");
+      const day = new Date().toISOString().slice(0, 10);
+      const path = await deps.pickSaveFile(`multishell-config-${day}.json`, ctx.sender);
+      if (!path) return null;
+      const file = buildExport(readTransfer(), { appVersion: deps.appVersion ?? "", now: new Date() });
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, JSON.stringify(file, null, 2));
+      return path;
+    },
+    /** Mescla um export por id. Antes, guarda o estado atual em <userData>/backups. */
+    settings_import: async (_args, ctx) => {
+      if (!deps.pickOpenFile) throw new Error("diálogo de abrir indisponível");
+      const path = await deps.pickOpenFile(ctx.sender);
+      if (!path) return null;
+      // Valida antes de tocar em qualquer arquivo.
+      const file = parseExport(readFileSync(path, "utf8"));
+      const current = readTransfer();
+      const backupDir = join(deps.userDataDir, "backups");
+      mkdirSync(backupDir, { recursive: true });
+      const backup = join(backupDir, `settings-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+      writeFileSync(backup, JSON.stringify(current, null, 2));
+
+      const isDir = (p: string) => {
+        try { return isAbsolute(p) && statSync(p).isDirectory(); } catch { return false; }
+      };
+      const next = mergeImport(current, file, { isDir });
+      store.set(SPACES_STORE, next.spaces);
+      store.set(PROVIDERS_STORE, next.providers);
+      store.set(LAYOUTS_STORE, next.layouts);
+      store.set(MCP_STORE, next.mcp);
+      store.set(SETTINGS_STORE, next.settings);
+      invalidateGuardCache();
+      // Manifesto MCP que os harnesses leem dentro de cada espaço importado.
+      for (const spaceId of Object.keys(file.mcp_servers)) {
+        const space = next.spaces.find((s) => s.id === spaceId);
+        if (space) await syncSpaceMcpConfig(spaceRoot(space), next.mcp[spaceId] ?? [], space.base_path ?? null);
+      }
+      for (const name of [SPACES_STORE, PROVIDERS_STORE, LAYOUTS_STORE, MCP_STORE, SETTINGS_STORE]) {
+        const payload: StoreChangedEvent = { name };
+        broadcast(EVENTS.storeChanged, payload, ctx.sender);
+      }
+      return {
+        spaces: file.spaces.length,
+        providers: file.providers.length,
+        mcp: Object.values(file.mcp_servers).reduce((n, l) => n + l.length, 0),
+        backup,
+      };
+    },
+    update_check: async () => {
+      if (!deps.fetchRelease || !deps.appVersion) return null;
+      try {
+        const ignored = store.get<{ ignored_version?: string | null }>(UPDATES_STORE)?.ignored_version ?? null;
+        return latestUpdate({
+          release: await deps.fetchRelease(),
+          current: deps.appVersion,
+          platform: deps.platform ?? process.platform,
+          arch: deps.arch ?? process.arch,
+          ignored,
+        });
+      } catch {
+        // Offline ou rate limit do GitHub: tenta de novo no próximo ciclo.
+        return null;
+      }
+    },
+    update_ignore: ({ version }) => {
+      store.set(UPDATES_STORE, { ignored_version: str(version, "version") });
+    },
+    update_open: async ({ url }) => {
+      const u = str(url, "url");
+      if (!isReleaseUrl(u)) throw new Error(`URL fora do repositório: ${u}`);
+      if (!deps.openExternal) throw new Error("openExternal indisponível");
+      await deps.openExternal(u);
+    },
+    /** Opções do seletor de shell nas configurações. `git_bash` só existe no Windows. */
+    shell_options: () => ({
+      default: defaultShell(),
+      git_bash: process.platform === "win32" ? findGitBash(process.env) : null,
+    }),
 
     /** Erros do renderer chegam aqui e saem no terminal do `electron-vite dev`. */
     log_front: ({ level, message }) => {
@@ -454,6 +570,25 @@ export function registerHandlers(deps: Omit<HandlerDeps, "openPath"> & Partial<P
       return result.canceled ? null : result.filePaths[0] ?? null;
     },
     broadcast: windows?.broadcast ? (ch, payload, except) => windows.broadcast(ch, payload, except) : undefined,
+    openExternal: (url) => shell.openExternal(url),
+    appVersion: app.getVersion(),
+    pickSaveFile: async (defaultName, sender) => {
+      const owner = BrowserWindow.fromWebContents(sender as WebContents);
+      const options = { defaultPath: defaultName, filters: [{ name: "JSON", extensions: ["json"] }] };
+      const result = owner ? await dialog.showSaveDialog(owner, options) : await dialog.showSaveDialog(options);
+      return result.canceled ? null : result.filePath ?? null;
+    },
+    pickOpenFile: async (sender) => {
+      const owner = BrowserWindow.fromWebContents(sender as WebContents);
+      const options = { filters: [{ name: "JSON", extensions: ["json"] }], properties: ["openFile"] as Array<"openFile"> };
+      const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+      return result.canceled ? null : result.filePaths[0] ?? null;
+    },
+    fetchRelease: async () => {
+      const res = await net.fetch(LATEST_RELEASE_API, { headers: { Accept: "application/vnd.github+json", "User-Agent": "Multishell" } });
+      if (!res.ok) throw new Error(`GitHub ${res.status}`);
+      return res.json();
+    },
     ...deps,
   });
   for (const name of COMMANDS) {

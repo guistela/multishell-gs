@@ -66,7 +66,6 @@ flowchart TD
 - **Handoff entre agentes.** Passa o contexto para outro terminal do espaço, ou abre outro agente e entrega o pacote quando o harness sobe. Útil quando um agente fica sem tokens no meio da tarefa.
 - **Estado do agente no título.** Ponto pulsando quando ele está trabalhando, apagado quando terminou e espera você. Deduzido do fluxo do PTY.
 - **Barra na seleção.** Selecionou texto no terminal: copiar, ou mandar o trecho para um agente de outro terminal com uma instrução junto.
-- **Kanban local por espaço.** A tarefa é atribuída a um terminal e enviada ao agente dele. Tarefa também nasce da seleção do terminal.
 - **MCP por espaço.** Servidores [Model Context Protocol](https://modelcontextprotocol.io/) configurados por perfil, gravados no `.mcp.json` que os harnesses leem.
 
 ### Operação
@@ -75,6 +74,10 @@ flowchart TD
 - **Snapshots.** Guarda o conteúdo dos arquivos modificados e rastreados pelo git na pasta do terminal, com rollback confirmado.
 - **Guardrail de comandos digitados.** Opcional, ligado por espaço: barra `rm -rf /`, fork bomb, `mkfs` e `dd` em disco no que você digita ou cola. Não alcança o agente, que roda dentro do terminal e cria os próprios processos; para conter o agente use o modo sem bypass ou um snapshot antes.
 - **Terminais.** Abas por espaço, layouts (único, grade, vertical, horizontal, lista), tema por terminal e janelas destacadas em outro monitor sem derrubar o processo.
+- **Ordem e visibilidade.** Arraste a aba ou o cabeçalho do tile para mudar a posição. Oculte um terminal da grade e da lista sem parar o processo. Arraste os espaços na barra lateral para ordená-los.
+- **Shell à escolha.** Automático (PowerShell ou `$SHELL`), Git Bash no Windows ou um caminho qualquer.
+- **Exportar e importar.** Leva espaços, providers, MCP, layouts e aparência para outra máquina. Segredos não vão no arquivo.
+- **Aviso de versão nova.** Consulta o GitHub ao abrir e a cada 6 h. Avisa na barra de status e abre o instalador certo.
 
 ---
 

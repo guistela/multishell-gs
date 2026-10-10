@@ -1,8 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../store";
 import { setLanguage, SUPPORTED_LANGUAGES, type Language } from "../../i18n";
 import type { TerminalSettings } from "../../types";
+import { pty, type ShellOptions } from "../terminal/pty";
+
+/** Mesmo token que o main entende em `electron/shell.ts`. */
+const GIT_BASH = "git-bash";
+type ShellMode = "auto" | "git-bash" | "custom";
+
+function modeOf(shell: string | null | undefined): ShellMode {
+  const s = shell?.trim();
+  if (!s) return "auto";
+  return s === GIT_BASH ? "git-bash" : "custom";
+}
 
 export const FONT_MIN = 10;
 export const FONT_MAX = 20;
@@ -16,6 +27,14 @@ export default function TerminalTab() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shellMode, setShellMode] = useState<ShellMode>(modeOf(settings.shell));
+  const [shellOptions, setShellOptions] = useState<ShellOptions | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    pty.shellOptions().then((o) => { if (alive && o) setShellOptions(o); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const fontSize = Number(fontSizeText);
   const fontSizeValid = Number.isInteger(fontSize) && fontSize >= FONT_MIN && fontSize <= FONT_MAX;
@@ -31,7 +50,7 @@ export default function TerminalTab() {
     try {
       const next: TerminalSettings = {
         ...draft,
-        shell: draft.shell?.trim() || null,
+        shell: shellMode === "auto" ? null : shellMode === "git-bash" ? GIT_BASH : draft.shell?.trim() || null,
         default_cwd: draft.default_cwd?.trim() || null,
         font_size: fontSize,
       };
@@ -49,8 +68,27 @@ export default function TerminalTab() {
     <form className="settings-editor" onSubmit={(e) => { e.preventDefault(); void save(); }}>
       <label>
         {t("terminal.shell")}
-        <input type="text" value={draft.shell ?? ""} placeholder={t("terminal.shellHint")} onChange={(e) => patch({ shell: e.target.value })} />
+        <select
+          value={shellMode}
+          onChange={(e) => {
+            const mode = e.target.value as ShellMode;
+            setShellMode(mode);
+            patch({ shell: mode === "custom" && modeOf(draft.shell) === "custom" ? draft.shell : mode === "custom" ? "" : null });
+          }}
+        >
+          <option value="auto">{t("terminal.shellAuto", { shell: shellOptions?.default ?? "…" })}</option>
+          <option value="git-bash" disabled={!shellOptions?.git_bash}>
+            {shellOptions?.git_bash ? t("terminal.shellGitBash") : t("terminal.shellGitBashMissing")}
+          </option>
+          <option value="custom">{t("terminal.shellCustom")}</option>
+        </select>
       </label>
+      {shellMode === "custom" && (
+        <label>
+          {t("terminal.shellPath")}
+          <input type="text" value={draft.shell ?? ""} placeholder={t("terminal.shellHint")} onChange={(e) => patch({ shell: e.target.value })} />
+        </label>
+      )}
       <label>
         {t("terminal.defaultCwd")}
         <input type="text" value={draft.default_cwd ?? ""} onChange={(e) => patch({ default_cwd: e.target.value })} />

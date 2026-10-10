@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: TerminalSettings = {
 
 interface UiState { sessions: Array<Omit<Session, "harness_running"> & { harness_running?: boolean }>; selectedSessionId: string | null }
 
-export type WorkspaceTab = "terminals" | "kanban" | "handoff" | "activity" | "snapshots" | "security" | "accounts";
+export type WorkspaceTab = "terminals" | "handoff" | "activity" | "snapshots" | "security" | "accounts";
 
 interface AppState {
   confirmation: { message: string; action: () => void } | null;
@@ -41,6 +41,8 @@ interface AppState {
 
   load: () => Promise<void>;
   reloadUiState: () => Promise<void>;
+  /** Relê espaços, providers, configurações e layouts. Sessões abertas ficam como estão. */
+  reloadConfig: () => Promise<void>;
   detachSession: (id: string) => Promise<void>;
   reattachSession: (id: string) => Promise<void>;
   saveSpace: (space: Space) => Promise<void>;
@@ -53,6 +55,12 @@ interface AppState {
   /** Aplica vários patches de uma vez. Persiste ui-state uma única vez. */
   patchSessions: (patches: Record<string, Partial<Session>>) => void;
   removeSession: (id: string) => void;
+  /** Põe a sessão no lugar de `targetId`, no mesmo espaço. Persiste ui-state. */
+  moveSession: (id: string, targetId: string) => void;
+  /** Troca a sessão com a vizinha do mesmo espaço (-1 esquerda, 1 direita). */
+  shiftSession: (id: string, delta: -1 | 1) => void;
+  /** Põe o espaço no lugar de `targetId` e grava a ordem no main. */
+  moveSpace: (id: string, targetId: string) => void;
   closeSpaceSessions: (spaceId: string) => void;
   duplicateSession: (id: string) => Session | null;
   selectSession: (id: string | null) => void;
@@ -100,6 +108,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       set({ loadError: String((e as Error)?.message ?? e), loaded: true });
     }
+  },
+  reloadConfig: async () => {
+    const [spaces, providers, settings, layouts] = await Promise.all([
+      api.spacesList(), api.providersList(), api.storeGet<TerminalSettings>("settings"), api.storeGet("workspace-layouts"),
+    ]);
+    const merged = { ...DEFAULT_SETTINGS, ...(settings ?? {}) };
+    void setLanguage(merged.language);
+    set({ spaces, providers, settings: merged, spaceLayouts: normalizeLayouts(layouts) });
   },
   reloadUiState: async () => {
     const ui = await api.storeGet<UiState>("ui-state");
@@ -165,6 +181,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { sessions, selectedSessionId, selectedSpaceId: targetSpaceId };
     });
     persistUi(get);
+  },
+  moveSession: (id, targetId) => {
+    const sessions = get().sessions;
+    const from = sessions.findIndex((x) => x.id === id);
+    const to = sessions.findIndex((x) => x.id === targetId);
+    if (from < 0 || to < 0 || from === to || sessions[from].space_id !== sessions[to].space_id) return;
+    set({ sessions: moveItem(sessions, from, to) });
+    persistUi(get);
+  },
+  shiftSession: (id, delta) => {
+    const session = get().sessions.find((x) => x.id === id);
+    if (!session) return;
+    const inSpace = get().sessions.filter((x) => x.space_id === session.space_id);
+    const neighbor = inSpace[inSpace.indexOf(session) + delta];
+    if (neighbor) get().moveSession(id, neighbor.id);
+  },
+  moveSpace: (id, targetId) => {
+    const spaces = get().spaces;
+    const from = spaces.findIndex((x) => x.id === id);
+    const to = spaces.findIndex((x) => x.id === targetId);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = moveItem(spaces, from, to);
+    set({ spaces: next });
+    // O main devolve a lista gravada. Se falhar, relê para não mostrar uma ordem que não ficou salva.
+    void api.spacesReorder(next.map((x) => x.id))
+      .then((saved) => { if (Array.isArray(saved)) set({ spaces: saved }); })
+      .catch(() => api.spacesList().then((spaces) => set({ spaces })).catch(() => {}));
   },
   closeSpaceSessions: (spaceId) => {
     const toRemove = get().sessions.filter((s) => s.space_id === spaceId);
@@ -234,6 +277,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   dismissMigration: () => set({ migration: null }),
 }));
+
+function moveItem<T>(list: T[], from: number, to: number): T[] {
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
 
 function persistUi(get: () => AppState) {
   const { sessions, selectedSessionId } = get();
