@@ -1,0 +1,15 @@
+{
+  "name": "multishell",
+  "description": "Plugins do Multishell. Marketplace local: instala do disco, sem rede.",
+  "owner": {
+    "name": "Multishell"
+  },
+  "plugins": [
+    {
+      "name": "multishell-lens",
+      "source": "./plugins/multishell-lens",
+      "description": "Mod: painel da sessão ao lado da conversa (visão geral, agentes, turnos, diffs, árvore, contexto e inventário) e uma barra de contexto e limites acima do prompt. Só observa e não abre conexão de rede.",
+      "category": "mod"
+    }
+  ]
+}

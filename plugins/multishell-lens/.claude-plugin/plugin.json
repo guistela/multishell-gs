@@ -1,0 +1,13 @@
+{
+  "name": "multishell-lens",
+  "version": "1.0.1",
+  "description": "Painel da sessão ao lado da conversa: visão geral, agentes (quem chamou quem e rodadas), turnos, diffs, árvore de arquivos, contexto e inventário, e uma barra de contexto e limites acima do prompt. Só observa. Não faz nenhuma conexão de rede.",
+  "author": {
+    "name": "Multishell",
+    "url": "https://github.com/guistela/multishell-gs"
+  },
+  "homepage": "https://github.com/guistela/multishell-gs/tree/main/plugins/multishell-lens",
+  "repository": "https://github.com/guistela/multishell-gs",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
