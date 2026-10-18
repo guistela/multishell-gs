@@ -87,7 +87,8 @@
     "show": "Mostrar",
     "hiddenCount_one": "{{count}} oculto",
     "hiddenCount_other": "{{count}} ocultos",
-    "showHidden": "Mostrar os terminais ocultos"
+    "showHidden": "Mostrar os terminais ocultos",
+    "resize": "Arraste para redimensionar. Dois cliques iguala."
   },
   "home": {
     "caption": "Um lugar para seus terminais",

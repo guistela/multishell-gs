@@ -280,3 +280,133 @@ describe("workspace: ordem e visibilidade", () => {
     expect(articles()).toEqual(["Alpha", "Beta"]);
   });
 });
+
+describe("redimensionar tiles", () => {
+  /** jsdom devolve 0 em tudo; a divisória precisa de um container com tamanho. */
+  const comLargura = (px: number) =>
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: px, height: px, top: 0, left: 0, right: px, bottom: px, x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+
+  const arrastar = (el: HTMLElement, de: number, para: number) => {
+    fireEvent.pointerDown(el, { clientX: de, clientY: de, pointerId: 1 });
+    fireEvent.pointerMove(el, { clientX: para, clientY: para, pointerId: 1 });
+    fireEvent.pointerUp(el, { clientX: para, clientY: para, pointerId: 1 });
+  };
+
+  /** A última gravação de proporções; o lib do tsconfig não tem Array.at. */
+  const ultimoTamanho = () => {
+    const todas = invokeMock.mock.calls.filter((c) => c[0] === "store_set" && c[1]?.name === "workspace-sizes");
+    return todas.length === 0 ? undefined : todas[todas.length - 1];
+  };
+
+  const mostrar = (mode: string) => {
+    render(<Workspace />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Visualização" }), { target: { value: mode } });
+  };
+
+  it("só os layouts de uma dimensão têm divisória", () => {
+    render(<Workspace />);
+    for (const mode of ["single", "list", "grid"]) {
+      fireEvent.change(screen.getByRole("combobox", { name: "Visualização" }), { target: { value: mode } });
+      expect(screen.queryByTestId("tile-splitter-0")).toBeNull();
+    }
+    fireEvent.change(screen.getByRole("combobox", { name: "Visualização" }), { target: { value: "horizontal" } });
+    expect(screen.getByTestId("tile-splitter-0")).toBeInTheDocument();
+  });
+
+  it("dois tiles têm uma divisória, não duas: a última borda não divide nada", () => {
+    mostrar("horizontal");
+    expect(screen.getAllByRole("separator")).toHaveLength(1);
+  });
+
+  it("arrastar grava a nova proporção do espaço", async () => {
+    comLargura(1000);
+    mostrar("horizontal");
+
+    arrastar(screen.getByTestId("tile-splitter-0"), 500, 600);
+
+    await waitFor(() => {
+      const gravado = ultimoTamanho();
+      expect(gravado).toBeDefined();
+      const [esquerda, direita] = gravado![1].value[spaceA.id];
+      expect(esquerda).toBeGreaterThan(direita);
+      expect(esquerda + direita).toBeCloseTo(2);
+    });
+  });
+
+  it("não grava a cada pixel: só ao soltar", () => {
+    comLargura(1000);
+    mostrar("horizontal");
+    const divisoria = screen.getByTestId("tile-splitter-0");
+
+    fireEvent.pointerDown(divisoria, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(divisoria, { clientX: 520, pointerId: 1 });
+    fireEvent.pointerMove(divisoria, { clientX: 560, pointerId: 1 });
+    expect(invokeMock.mock.calls.filter((c) => c[1]?.name === "workspace-sizes")).toHaveLength(0);
+
+    fireEvent.pointerUp(divisoria, { clientX: 560, pointerId: 1 });
+    expect(invokeMock.mock.calls.filter((c) => c[1]?.name === "workspace-sizes")).toHaveLength(1);
+  });
+
+  it("o arrasto parte sempre da proporção de quando começou", async () => {
+    comLargura(1000);
+    useAppStore.setState({ spaceSizes: { [spaceA.id]: [1, 1] } });
+    mostrar("horizontal");
+    const divisoria = screen.getByTestId("tile-splitter-0");
+
+    // Dois movimentos no mesmo gesto: o segundo não soma em cima do primeiro.
+    fireEvent.pointerDown(divisoria, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(divisoria, { clientX: 600, pointerId: 1 });
+    fireEvent.pointerMove(divisoria, { clientX: 600, pointerId: 1 });
+    fireEvent.pointerUp(divisoria, { clientX: 600, pointerId: 1 });
+
+    await waitFor(() => {
+      const [esquerda] = ultimoTamanho()![1].value[spaceA.id];
+      // 100px em 1000px com 2fr = +0,2fr. Somado duas vezes daria 1,4.
+      expect(esquerda).toBeCloseTo(1.2);
+    });
+  });
+
+  it("dois cliques na divisória iguala os tiles", async () => {
+    useAppStore.setState({ spaceSizes: { [spaceA.id]: [3, 0.4] } });
+    mostrar("horizontal");
+
+    fireEvent.doubleClick(screen.getByTestId("tile-splitter-0"));
+
+    await waitFor(() => {
+      const gravado = ultimoTamanho();
+      expect(gravado![1].value[spaceA.id]).toEqual([1, 1]);
+    });
+  });
+
+  it("o teclado também redimensiona", async () => {
+    comLargura(1000);
+    mostrar("horizontal");
+
+    fireEvent.keyDown(screen.getByTestId("tile-splitter-0"), { key: "ArrowRight" });
+
+    await waitFor(() => {
+      const [esquerda] = ultimoTamanho()![1].value[spaceA.id];
+      expect(esquerda).toBeGreaterThan(1);
+    });
+  });
+
+  it("a proporção guardada vira o flex do tile", () => {
+    useAppStore.setState({ spaceSizes: { [spaceA.id]: [2, 0.5] } });
+    mostrar("horizontal");
+    const [alpha, beta] = screen.getAllByRole("article");
+    expect(alpha.style.flex).toBe("2 1 0%");
+    expect(beta.style.flex).toBe("0.5 1 0%");
+  });
+
+  it("cada espaço guarda a própria proporção", () => {
+    useAppStore.setState({
+      spaceSizes: { [spaceA.id]: [2, 0.5], [spaceB.id]: [1] },
+      spaceLayouts: { [spaceA.id]: "horizontal", [spaceB.id]: "horizontal" },
+    });
+    render(<Workspace />);
+    act(() => useAppStore.getState().selectSpace(spaceB.id));
+    expect(screen.getAllByRole("article")[0].style.flex).toBe("1 1 0%");
+  });
+});

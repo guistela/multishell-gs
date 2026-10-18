@@ -25,6 +25,7 @@ export default function App() {
     const offStore = bridge().onStoreChanged(({ name }) => {
       if (name === "ui-state") void useAppStore.getState().reloadUiState();
       if (name === "workspace-layouts") void useAppStore.getState().reloadLayouts();
+      if (name === "workspace-sizes") void useAppStore.getState().reloadSizes();
     });
     const offReattach = bridge().onSessionReattached(({ session_id }) => {
       useAppStore.setState((state) => ({ sessions: state.sessions.map((s) => s.id === session_id ? { ...s, detached: false } : s) }));

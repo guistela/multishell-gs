@@ -28,8 +28,12 @@ interface AppState {
   workspaceTab: WorkspaceTab;
   setWorkspaceTab: (tab: WorkspaceTab) => void;
   spaceLayouts: Record<string, LayoutMode>;
+  /** Fração de cada tile nos layouts de uma dimensão, por espaço. */
+  spaceSizes: Record<string, number[]>;
   selectSpace: (id: string) => void;
   setSpaceLayout: (id: string, layout: LayoutMode) => Promise<void>;
+  setSpaceSizes: (id: string, sizes: number[]) => Promise<void>;
+  reloadSizes: () => Promise<void>;
   reloadLayouts: () => Promise<void>;
   settings: TerminalSettings;
   loaded: boolean;
@@ -74,7 +78,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   spaces: [], providers: [], sessions: [], selectedSessionId: null, settings: DEFAULT_SETTINGS, loaded: false, loadError: null,
-  migration: null, restoredSessionIds: new Set(), selectedSpaceId: null, spaceLayouts: {},
+  migration: null, restoredSessionIds: new Set(), selectedSpaceId: null, spaceLayouts: {}, spaceSizes: {},
   confirmation: null, notice: null, recentlyClosed: [],
   reopenSession: () => {
     const old = get().recentlyClosed[get().recentlyClosed.length - 1];
@@ -101,6 +105,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   reloadLayouts: async () => {
     set({ spaceLayouts: normalizeLayouts(await api.storeGet("workspace-layouts")) });
   },
+  setSpaceSizes: async (id, sizes) => {
+    const spaceSizes = { ...get().spaceSizes, [id]: sizes };
+    set({ spaceSizes });
+    await api.storeSet("workspace-sizes", spaceSizes);
+  },
+  reloadSizes: async () => {
+    set({ spaceSizes: normalizeSizesStore(await api.storeGet("workspace-sizes")) });
+  },
 
   load: async () => {
     try {
@@ -110,12 +122,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   reloadConfig: async () => {
-    const [spaces, providers, settings, layouts] = await Promise.all([
-      api.spacesList(), api.providersList(), api.storeGet<TerminalSettings>("settings"), api.storeGet("workspace-layouts"),
+    const [spaces, providers, settings, layouts, sizes] = await Promise.all([
+      api.spacesList(), api.providersList(), api.storeGet<TerminalSettings>("settings"),
+      api.storeGet("workspace-layouts"), api.storeGet("workspace-sizes"),
     ]);
     const merged = { ...DEFAULT_SETTINGS, ...(settings ?? {}) };
     void setLanguage(merged.language);
-    set({ spaces, providers, settings: merged, spaceLayouts: normalizeLayouts(layouts) });
+    set({ spaces, providers, settings: merged, spaceLayouts: normalizeLayouts(layouts), spaceSizes: normalizeSizesStore(sizes) });
   },
   reloadUiState: async () => {
     const ui = await api.storeGet<UiState>("ui-state");
@@ -302,16 +315,27 @@ async function loadInner(set: (partial: Partial<AppState>) => void) {
         }
       } catch { /* sem app antigo */ }
     }
-    const [spaces, providers, settings, layouts] = await Promise.all([
-      api.spacesList(), api.providersList(), api.storeGet<TerminalSettings>("settings"), api.storeGet("workspace-layouts"),
+    const [spaces, providers, settings, layouts, sizes] = await Promise.all([
+      api.spacesList(), api.providersList(), api.storeGet<TerminalSettings>("settings"),
+      api.storeGet("workspace-layouts"), api.storeGet("workspace-sizes"),
     ]);
     const sessions: Session[] = (ui?.sessions ?? []).map((s) => ({ ...s, harness_running: s.harness_running ?? false, detached: s.detached ?? false }));
     const merged = { ...DEFAULT_SETTINGS, ...(settings ?? {}) };
     void setLanguage(merged.language);
-    set({ spaces, providers, settings: merged, spaceLayouts: normalizeLayouts(layouts),
+    set({ spaces, providers, settings: merged, spaceLayouts: normalizeLayouts(layouts), spaceSizes: normalizeSizesStore(sizes),
       selectedSpaceId: sessions.find((s) => s.id === ui?.selectedSessionId)?.space_id ?? spaces[0]?.id ?? null,
       sessions, selectedSessionId: ui?.selectedSessionId ?? null, loaded: true, migration,
       restoredSessionIds: new Set(sessions.map((s) => s.id)) });
+}
+
+/** Só espaços com lista de números positivos. O resto do JSON é descartado. */
+function normalizeSizesStore(value: unknown): Record<string, number[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, list]) => Array.isArray(list) && list.every((n) => typeof n === "number" && Number.isFinite(n) && n > 0))
+      .map(([id, list]) => [id, list as number[]]),
+  );
 }
 
 function normalizeLayouts(value: unknown): Record<string, LayoutMode> {

@@ -87,7 +87,8 @@
     "show": "Show",
     "hiddenCount_one": "{{count}} hidden",
     "hiddenCount_other": "{{count}} hidden",
-    "showHidden": "Show hidden terminals"
+    "showHidden": "Show hidden terminals",
+    "resize": "Drag to resize. Double-click to even out."
   },
   "home": {
     "caption": "A place for your terminals",

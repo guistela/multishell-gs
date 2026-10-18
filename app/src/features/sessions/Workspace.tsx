@@ -1,10 +1,12 @@
 import { NewAgentDialog } from "./NewAgentDialog";
 import { newTerminalInFolder } from "./newTerminalInFolder";
-import { useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ContextMenu, type MenuItem } from "../../components/ContextMenu";
 import { useAppStore } from "../../store";
 import { LAYOUT_MODES, type Session } from "../../types";
+import { TileSplitter } from "./TileSplitter";
+import { MIN_TILE_PX, normalizeSizes, resizeAt } from "./tileSizes";
 import { useSessionMenuItems } from "./useSessionMenuItems";
 import { useSpaceMenuItems } from "../spaces/useSpaceMenuItems";
 import { Terminal } from "../terminal/Terminal";
@@ -84,6 +86,48 @@ export function Workspace({
   const inSpace = sessions.filter((s) => s.space_id === spaceId);
   const visibleInSpace = inSpace.filter((s) => !s.hidden);
   const tiled = mode === "grid" || mode === "vertical" || mode === "horizontal";
+  // Só os layouts de uma dimensão têm divisória: na grade o vizinho é ambíguo.
+  const resizable = mode === "vertical" || mode === "horizontal";
+  const eixo = mode === "horizontal" ? "column" : "row";
+
+  // Frações do disco; durante o arrasto manda a cópia local, que não grava a cada pixel.
+  const spaceSizes = useAppStore((s) => s.spaceSizes);
+  const [arrastando, setArrastando] = useState<number[] | null>(null);
+  const baseDoArrasto = useRef<number[] | null>(null);
+  // O valor também vive num ref: o teclado redimensiona e grava no mesmo evento,
+  // e lá o estado ainda é o de antes do re-render.
+  const ultimoArrasto = useRef<number[] | null>(null);
+  const tamanhos = arrastando ?? normalizeSizes(spaceId ? spaceSizes[spaceId] : undefined, inSpace.length);
+
+  const redimensionar = (index: number, deltaPx: number, totalPx: number) => {
+    // O arrasto parte sempre das frações de quando ele começou: aplicar sobre as
+    // frações vivas faria o tile perseguir o próprio resultado.
+    baseDoArrasto.current ??= tamanhos;
+    const proximo = resizeAt(baseDoArrasto.current, index, deltaPx, totalPx);
+    ultimoArrasto.current = proximo;
+    setArrastando(proximo);
+  };
+  const gravarTamanhos = () => {
+    const fim = ultimoArrasto.current;
+    ultimoArrasto.current = null;
+    baseDoArrasto.current = null;
+    setArrastando(null);
+    if (fim && spaceId) void useAppStore.getState().setSpaceSizes(spaceId, fim);
+  };
+  const igualarTamanhos = () => {
+    ultimoArrasto.current = null;
+    baseDoArrasto.current = null;
+    setArrastando(null);
+    if (spaceId) void useAppStore.getState().setSpaceSizes(spaceId, inSpace.map(() => 1));
+  };
+
+  const posicaoNoEspaco = new Map(inSpace.map((s, i) => [s.id, i]));
+  /** Flex do tile: a fração dele, com piso para não sumir. */
+  const estiloDoTile = (index: number | undefined): React.CSSProperties | undefined => {
+    if (!resizable || index === undefined) return undefined;
+    const base = eixo === "column" ? { minWidth: MIN_TILE_PX } : { minHeight: MIN_TILE_PX };
+    return { ...base, flex: `${tamanhos[index] ?? 1} 1 0%` };
+  };
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const sessionMemory = useSessionMemory();
@@ -371,23 +415,41 @@ export function Workspace({
         )}
 
         <div className={`terminals workspace-terminals layout-${mode}${inSpace.length === 0 ? " empty" : ""}`} data-testid="workspace-terminals">
-          {sessions.map((s) => (
-            <WorkspaceTerminalTile
-              key={s.id}
-              session={s}
-              spaceId={spaceId}
-              isSelected={s.id === selected}
-              isTiled={tiled}
-              inSpaceCount={inSpace.length}
-              dragProps={reorderDragProps(s, dropTarget, setDropTarget)}
-              onOpenSettings={onOpenSettings}
-              onToggleMaximize={() => toggleLayoutMaximize(s.id)}
-              onContextMenu={(e, items) => {
-                e.preventDefault();
-                setContextMenu({ x: e.clientX, y: e.clientY, items: withArrange(s, items) });
-              }}
-            />
-          ))}
+          {/* O Fragment existe para toda sessão, mesmo sem divisória: trocar o tipo
+              do elemento remontaria o Terminal e recriaria o xterm. */}
+          {sessions.map((s) => {
+            const posicao = posicaoNoEspaco.get(s.id);
+            const temDivisoria = resizable && posicao !== undefined && posicao < inSpace.length - 1;
+            return (
+              <Fragment key={s.id}>
+                <WorkspaceTerminalTile
+                  session={s}
+                  spaceId={spaceId}
+                  isSelected={s.id === selected}
+                  isTiled={tiled}
+                  inSpaceCount={inSpace.length}
+                  style={estiloDoTile(posicao)}
+                  dragProps={reorderDragProps(s, dropTarget, setDropTarget)}
+                  onOpenSettings={onOpenSettings}
+                  onToggleMaximize={() => toggleLayoutMaximize(s.id)}
+                  onContextMenu={(e, items) => {
+                    e.preventDefault();
+                    setContextMenu({ x: e.clientX, y: e.clientY, items: withArrange(s, items) });
+                  }}
+                />
+                {temDivisoria ? (
+                  <TileSplitter
+                    index={posicao}
+                    axis={eixo}
+                    label={t("layout.resize")}
+                    onResize={redimensionar}
+                    onCommit={gravarTamanhos}
+                    onReset={igualarTamanhos}
+                  />
+                ) : null}
+              </Fragment>
+            );
+          })}
         </div>
       </div>
 
@@ -451,6 +513,7 @@ function WorkspaceTerminalTile({
   isSelected,
   isTiled,
   inSpaceCount,
+  style,
   dragProps,
   onOpenSettings,
   onToggleMaximize,
@@ -461,6 +524,7 @@ function WorkspaceTerminalTile({
   isSelected: boolean;
   isTiled: boolean;
   inSpaceCount: number;
+  style?: React.CSSProperties;
   dragProps: DragProps;
   onOpenSettings?: (tab?: "providers" | "spaces" | "terminal") => void;
   onToggleMaximize: () => void;
@@ -472,6 +536,7 @@ function WorkspaceTerminalTile({
   return (
     <article
       className={`terminal-host terminal-tile${isSelected ? " active" : ""}`}
+      style={style}
       hidden={session.space_id !== spaceId || (isTiled ? !!session.hidden : !isSelected)}
       aria-label={session.title}
       onPointerDown={() => { if (!isSelected) useAppStore.getState().selectSession(session.id); }}
