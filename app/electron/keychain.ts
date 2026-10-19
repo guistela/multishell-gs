@@ -28,7 +28,7 @@ export function spaceKeychainPath(root: string): string {
   return path.posix.join(root, "Library", "Keychains", "login.keychain-db");
 }
 
-export type KeychainResult = "created" | "kept" | "skipped";
+export type KeychainResult = "created" | "unlocked" | "skipped";
 
 export const realKeychainDeps: KeychainDeps = {
   exists: async (p) => { try { await fs.access(p); return true; } catch { return false; } },
@@ -41,23 +41,32 @@ export const realKeychainDeps: KeychainDeps = {
  * Garante o keychain do espaço. Idempotente: existindo, não mexe — os segredos
  * já guardados ficam onde estão.
  *
- * A senha é vazia de propósito. `security unlock-keychain -p <senha>` falha
- * fora de uma sessão gráfica, então um keychain com senha voltaria a travar
- * depois do timeout e o diálogo reapareceria. O arquivo fica 0600 dentro do
- * HOME do próprio usuário: ele separa espaços, não protege o usuário de si.
+ * A senha é vazia de propósito. O arquivo fica 0600 dentro do HOME do próprio
+ * usuário: ele separa espaços, não protege o usuário de si.
+ *
+ * Destrancar é o passo que não pode faltar, e vale também para o keychain que
+ * já existe. Só o keychain de verdade do usuário é destrancado pelo login do
+ * macOS; o do espaço nasce e reinicia trancado. Trancado, cada chamada do
+ * `security` abre o diálogo "security wants to use the login keychain" — e
+ * quem chama é o próprio `claude`, que guarda a credencial dele ali. Era um
+ * diálogo por sessão aberta.
  *
  * Nunca lança: keychain é conveniência, abrir o terminal é o que importa.
  */
 export async function ensureSpaceKeychain(root: string, deps: KeychainDeps = realKeychainDeps): Promise<KeychainResult> {
   const file = spaceKeychainPath(root);
   try {
-    if (await deps.exists(file)) return "kept";
-    await deps.mkdir(path.posix.dirname(file));
-    await deps.run("security", ["create-keychain", "-p", "", file]);
-    // Sem argumento de lock: nada de timeout de 300s nem lock ao dormir.
-    await deps.run("security", ["set-keychain-settings", file]);
-    await deps.chmod(file, 0o600);
-    return "created";
+    const existe = await deps.exists(file);
+    if (!existe) {
+      await deps.mkdir(path.posix.dirname(file));
+      await deps.run("security", ["create-keychain", "-p", "", file]);
+      // Sem argumento de lock: nada de timeout de 300s nem lock ao dormir.
+      await deps.run("security", ["set-keychain-settings", file]);
+      await deps.chmod(file, 0o600);
+    }
+    // Idempotente e silencioso quando já está destrancado.
+    await deps.run("security", ["unlock-keychain", "-p", "", file]);
+    return existe ? "unlocked" : "created";
   } catch {
     return "skipped";
   }

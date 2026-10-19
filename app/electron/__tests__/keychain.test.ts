@@ -42,8 +42,39 @@ describe("ensureSpaceKeychain", () => {
 
   it("não recria o que já existe: os segredos do espaço ficam onde estão", async () => {
     const d = deps({ exists: vi.fn(async () => true) });
-    expect(await ensureSpaceKeychain(ROOT, d)).toBe("kept");
-    expect(d.run).not.toHaveBeenCalled();
+    expect(await ensureSpaceKeychain(ROOT, d)).toBe("unlocked");
+    expect(d.mkdir).not.toHaveBeenCalled();
+    expect(d.run).not.toHaveBeenCalledWith("security", ["create-keychain", "-p", "", KC]);
+  });
+
+  // O travamento não sobrevive ao reboot. Keychain trancado faz o macOS pedir
+  // a senha a cada chamada do `security`, e é o claude que chama, a cada sessão.
+  it("destranca o keychain que já existe", async () => {
+    const d = deps({ exists: vi.fn(async () => true) });
+    await ensureSpaceKeychain(ROOT, d);
+    expect(d.run).toHaveBeenCalledWith("security", ["unlock-keychain", "-p", "", KC]);
+  });
+
+  it("destranca também o que acabou de criar", async () => {
+    const d = deps();
+    await ensureSpaceKeychain(ROOT, d);
+    expect(d.run).toHaveBeenCalledWith("security", ["unlock-keychain", "-p", "", KC]);
+  });
+
+  it("destranca depois de configurar, nunca antes de existir", async () => {
+    const d = deps();
+    await ensureSpaceKeychain(ROOT, d);
+    const chamadas = (d.run as any).mock.calls.map((c: any[]) => c[1][0]);
+    expect(chamadas).toEqual(["create-keychain", "set-keychain-settings", "unlock-keychain"]);
+  });
+
+  it("falha ao destrancar não apaga nem recria nada", async () => {
+    const d = deps({
+      exists: vi.fn(async () => true),
+      run: vi.fn(async (_b, args) => { if (args[0] === "unlock-keychain") throw new Error("senha mudou"); }),
+    });
+    expect(await ensureSpaceKeychain(ROOT, d)).toBe("skipped");
+    expect(d.chmod).not.toHaveBeenCalled();
   });
 
   it("falha do security não derruba o spawn", async () => {
