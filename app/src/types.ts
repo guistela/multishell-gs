@@ -15,6 +15,8 @@ export interface SpaceSecurity {
   share_git_config: boolean;
   inherit_process_env: boolean;
   block_destructive_commands?: boolean;
+  /** Liga os hooks do Claude Code que notificam o Multishell sozinhos. */
+  agent_notifications?: boolean;
 }
 
 export interface Space {

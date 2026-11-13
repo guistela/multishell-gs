@@ -71,6 +71,7 @@ describe("space.defaults", () => {
       share_git_config: false,
       inherit_process_env: false,
       block_destructive_commands: false,
+      agent_notifications: false,
     });
   });
 
@@ -114,7 +115,7 @@ describe("space.buildSpawnPlan (mac)", () => {
       expect(!v.startsWith("/Users/fulano/") || v.startsWith(root), `${k}=${v} vaza HOME real`).toBe(true);
     }
     expect(plan.env.PATH).toContain("/Users/fulano/.nvm/bin");
-    expect(plan.env.PATH.startsWith("/opt/homebrew/bin:/usr/local/bin:")).toBe(true);
+    expect(plan.env.PATH.startsWith(`${root}/bin:/opt/homebrew/bin:/usr/local/bin:`)).toBe(true);
     expect(plan.env.MULTISHELL_SPACE).toBe("cliente-x");
     expect(plan.env.GH_CONFIG_DIR).toBe(`${root}/.config/gh`);
     expect(plan.env.KUBECONFIG).toBe(`${root}/.kube/config`);
@@ -131,7 +132,9 @@ describe("space.buildSpawnPlan (mac)", () => {
 
   it("PATH sem PATH do processo termina sem lixo", () => {
     const plan = buildSpawnPlan(opts({ processEnv: {} }));
-    expect(plan.env.PATH).toBe("/opt/homebrew/bin:/usr/local/bin:/Users/fulano/.local/bin");
+    expect(plan.env.PATH).toBe(
+      "/Users/fulano/.multishell/profiles/cliente-x/bin:/opt/homebrew/bin:/usr/local/bin:/Users/fulano/.local/bin",
+    );
   });
 
   it("provider config_env_key aponta para dentro da raiz", () => {
@@ -220,7 +223,7 @@ describe("space.buildSpawnPlan (windows)", () => {
     expect(plan.env.HOME).toBe(root);
     expect(plan.env.APPDATA).toBe(`${root}\\AppData\\Roaming`);
     expect(plan.env.LOCALAPPDATA).toBe(`${root}\\AppData\\Local`);
-    expect(plan.env.PATH).toBe("C:\\bin");
+    expect(plan.env.PATH).toBe(`${root}\\bin;C:\\bin`);
     expect(plan.shell).toBe("pwsh.exe");
     expect(plan.shell_args.slice(0, 3)).toEqual(["-NoLogo", "-NoExit", "-File"]);
     expect(plan.shell_args[3]).toBe(`${root}\\multishell-profile.ps1`);
@@ -230,7 +233,7 @@ describe("space.buildSpawnPlan (windows)", () => {
 
   it("usa Path quando PATH não existe no processo", () => {
     const plan = buildSpawnPlan(opts({ realHome: "C:\\Users\\f", os: "win32", processEnv: { Path: "C:\\x" } }));
-    expect(plan.env.PATH).toBe("C:\\x");
+    expect(plan.env.PATH).toBe("C:\\Users\\f\\.multishell\\profiles\\cliente-x\\bin;C:\\x");
   });
 });
 
@@ -495,7 +498,7 @@ describe("PATH do espaço", () => {
 
   it("windows também não repete entrada", () => {
     const plan = buildSpawnPlan(opts({ os: "win32", processEnv: { PATH: "C:\\bin;C:\\bin;C:\\outro" } }));
-    expect(plan.env.PATH).toBe("C:\\bin;C:\\outro");
+    expect(plan.env.PATH.split(";").slice(1)).toEqual(["C:\\bin", "C:\\outro"]);
   });
 
   it("o zshrc gerado manda o zsh deduplicar o PATH sozinho", () => {
@@ -588,5 +591,124 @@ describe("space.bashProfileContent", () => {
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
+  });
+});
+
+describe("materialize: CLI de notificação no espaço", () => {
+  let home: string;
+  beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), "multishell-cli-")); });
+  afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const binDe = () => path.join(home, ".multishell", "profiles", "cliente-x", "bin");
+
+  it("grava o CLI e o atalho `multishell` em bin/", async () => {
+    await materialize(spaceFechado(), null, home, "darwin");
+    const bin = binDe();
+    expect(fs.readFileSync(path.join(bin, "multishell-notify.cjs"), "utf8")).toContain("node:net");
+    expect(fs.readFileSync(path.join(bin, "multishell"), "utf8")).toContain("ELECTRON_RUN_AS_NODE=1");
+  });
+
+  it("o atalho é executável", async () => {
+    await materialize(spaceFechado(), null, home, "darwin");
+    expect(fs.statSync(path.join(binDe(), "multishell")).mode & 0o111).toBeTruthy();
+  });
+
+  // No Windows não há `#!`: o atalho precisa ser um .cmd.
+  it("no windows o atalho é multishell.cmd", async () => {
+    await materialize(spaceFechado(), null, home, "win32");
+    const bin = binDe();
+    expect(fs.existsSync(path.join(bin, "multishell.cmd"))).toBe(true);
+    expect(fs.existsSync(path.join(bin, "multishell"))).toBe(false);
+  });
+
+  it("regrava por cima: o caminho do app muda a cada atualização", async () => {
+    const s = spaceFechado();
+    await materialize(s, null, home, "darwin");
+    fs.writeFileSync(path.join(binDe(), "multishell"), "lixo antigo");
+    await materialize(s, null, home, "darwin");
+    expect(fs.readFileSync(path.join(binDe(), "multishell"), "utf8")).toContain("ELECTRON_RUN_AS_NODE=1");
+  });
+});
+
+describe("materialize: hooks do Claude Code", () => {
+  let home: string;
+  beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), "multishell-hk-")); });
+  afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const claude = (): Provider => ({
+    id: "p-claude", name: "Claude Code", executable: "claude", args: [], bypass_args: [],
+    config_env_key: "CLAUDE_CONFIG_DIR", extra_env: [], icon: "", resume_args: [],
+  });
+
+  const espaco = (ligado: boolean): Space => {
+    const s = spaceFechado();
+    s.security = { ...s.security, agent_notifications: ligado };
+    return s;
+  };
+
+  const settingsPath = () =>
+    path.join(home, ".multishell", "profiles", "cliente-x", "providers", "claude-code", "settings.json");
+
+  const ler = () => JSON.parse(fs.readFileSync(settingsPath(), "utf8"));
+
+  it("com a chave ligada, escreve os hooks no settings do Claude Code", async () => {
+    await materialize(espaco(true), claude(), home, "darwin");
+    expect(JSON.stringify(ler().hooks)).toContain("hook Notification");
+    expect(JSON.stringify(ler().hooks)).toContain("hook Stop");
+  });
+
+  it("o hook chama o CLI do próprio espaço", async () => {
+    await materialize(espaco(true), claude(), home, "darwin");
+    const bin = path.join(home, ".multishell", "profiles", "cliente-x", "bin", "multishell");
+    expect(JSON.stringify(ler().hooks)).toContain(bin);
+  });
+
+  // Desligar a chave tem de desfazer o que a chave fez.
+  it("com a chave desligada, tira os hooks que tinha posto", async () => {
+    await materialize(espaco(true), claude(), home, "darwin");
+    await materialize(espaco(false), claude(), home, "darwin");
+    expect(ler().hooks).toEqual({});
+  });
+
+  it("não toca no resto do settings do usuário", async () => {
+    await materialize(espaco(true), claude(), home, "darwin");
+    fs.writeFileSync(settingsPath(), JSON.stringify({ ...ler(), model: "opus" }));
+    await materialize(espaco(true), claude(), home, "darwin");
+    expect(ler().model).toBe("opus");
+  });
+
+  it("settings corrompido não derruba a abertura do terminal", async () => {
+    const dir = path.dirname(settingsPath());
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(settingsPath(), "{ isso não é json");
+    await expect(materialize(espaco(true), claude(), home, "darwin")).resolves.toBeUndefined();
+    expect(JSON.stringify(ler().hooks)).toContain("hook Stop");
+  });
+
+  // Hook de agente só existe no Claude Code. Outro provider não ganha arquivo.
+  it("provider sem CLAUDE_CONFIG_DIR não ganha settings.json", async () => {
+    const outro = { ...claude(), name: "Codex", config_env_key: "CODEX_HOME" };
+    await materialize(espaco(true), outro, home, "darwin");
+    expect(fs.existsSync(path.join(home, ".multishell", "profiles", "cliente-x", "providers", "codex", "settings.json"))).toBe(false);
+  });
+});
+
+describe("buildSpawnPlan: bin do espaço no PATH", () => {
+  it("o bin do espaço vem antes de tudo", () => {
+    const plan = buildSpawnPlan({
+      space: spaceFechado(), provider: null, realHome: "/Users/fulano",
+      processEnv: { PATH: "/usr/bin" }, userShell: "/bin/zsh", os: "darwin",
+      cwd: null, defaultCwd: null,
+    });
+    expect(plan.env.PATH.split(":")[0]).toBe("/Users/fulano/.multishell/profiles/cliente-x/bin");
+  });
+
+  it("no windows também", () => {
+    const plan = buildSpawnPlan({
+      space: spaceFechado(), provider: null, realHome: "C:\\Users\\fulano",
+      processEnv: { PATH: "C:\\Windows" }, userShell: "powershell.exe", os: "win32",
+      cwd: null, defaultCwd: null,
+    });
+    expect(plan.env.PATH.split(";")[0]).toContain("cliente-x\\bin");
   });
 });

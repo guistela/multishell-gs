@@ -7,6 +7,8 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { ensureSpaceKeychain } from "./keychain.js";
+import { CLI_FILE, CLI_SHIM, cliSource, shimSource } from "./notify-cli.js";
+import { withNotifyHooks, withoutNotifyHooks } from "./agent-hooks.js";
 import { normalizeEnvVars, slug, type EnvVar, type Provider } from "./provider.js";
 
 export const PERSONAL_ID = "00000000-0000-0000-0000-000000000001";
@@ -19,6 +21,8 @@ export interface SpaceSecurity {
   share_git_config: boolean;
   inherit_process_env: boolean;
   block_destructive_commands?: boolean;
+  /** Liga os hooks do Claude Code que notificam o Multishell sozinhos. */
+  agent_notifications?: boolean;
 }
 
 export interface Space {
@@ -65,6 +69,7 @@ export function defaultSecurity(): SpaceSecurity {
     share_git_config: false,
     inherit_process_env: false,
     block_destructive_commands: false,
+    agent_notifications: false,
   };
 }
 
@@ -109,6 +114,7 @@ export function normalizeSecurity(raw: unknown): SpaceSecurity {
     share_git_config: raw.share_git_config === true,
     inherit_process_env: raw.inherit_process_env === true,
     block_destructive_commands: raw.block_destructive_commands === true,
+    agent_notifications: raw.agent_notifications === true,
   };
 }
 
@@ -200,6 +206,11 @@ function rootFor(space: Space, realHomeDir: string, osName: Os): string {
 
 export function providerConfigDir(root: string, prov: Provider, osName: Os): string {
   return pathFor(osName).join(root, "providers", slug(prov.name));
+}
+
+/** `bin` do espaço: onde mora o CLI `multishell`. Entra na frente do PATH. */
+export function spaceBinDir(root: string, osName: Os): string {
+  return pathFor(osName).join(root, "bin");
 }
 
 // ---------- plano de spawn (puro) ----------
@@ -304,7 +315,7 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
     env.USERPROFILE = root;
     env.APPDATA = p.join(root, "AppData", "Roaming");
     env.LOCALAPPDATA = p.join(root, "AppData", "Local");
-    env.PATH = spacePath([], processPath(o.processEnv), ";");
+    env.PATH = spacePath([spaceBinDir(root, o.os)], processPath(o.processEnv), ";");
     if (isBash(o.userShell)) {
       // Sem CHERE_INVOKING o login do Git Bash faz `cd $HOME` e ignora o cwd.
       env.CHERE_INVOKING = "1";
@@ -328,7 +339,7 @@ export function buildSpawnPlan(o: BuildOpts): SpawnPlan {
     // `~/.local/bin` do home real: é onde ficam agy, uv e pipx. São ferramentas,
     // não credenciais, então entram mesmo no espaço isolado.
     env.PATH = spacePath(
-      ["/opt/homebrew/bin", "/usr/local/bin", p.join(o.realHome, ".local", "bin")],
+      [spaceBinDir(root, o.os), "/opt/homebrew/bin", "/usr/local/bin", p.join(o.realHome, ".local", "bin")],
       processPath(o.processEnv),
       ":",
     );
@@ -473,11 +484,53 @@ async function removeSymlink(link: string): Promise<void> {
 }
 
 /** Cria pastas, rc do shell e symlinks conforme a política. Idempotente. */
+/** Grava o CLI `multishell` em `<espaço>/bin`. Devolve o caminho do atalho.
+ *  Regravado a cada abertura: o caminho do app muda a cada atualização. */
+async function writeNotifyCli(root: string, osName: Os): Promise<string> {
+  const bin = path.join(root, "bin");
+  const cliJs = path.join(bin, CLI_FILE);
+  await fs.writeFile(cliJs, cliSource(), "utf8");
+  if (osName === "win32") {
+    // Sem `#!` no Windows: o atalho é um .cmd.
+    const cmd = path.join(bin, `${CLI_SHIM}.cmd`);
+    await fs.writeFile(cmd, `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" "${cliJs}" %*\r\n`, "utf8");
+    return cmd;
+  }
+  const shim = path.join(bin, CLI_SHIM);
+  await fs.writeFile(shim, shimSource(process.execPath, cliJs), "utf8");
+  await fs.chmod(shim, 0o755);
+  return shim;
+}
+
+/** Liga ou desliga os hooks do Claude Code, conforme a chave do espaço.
+ *  Só o Claude Code tem hooks: é quem usa `CLAUDE_CONFIG_DIR`. */
+async function syncAgentHooks(
+  root: string,
+  space: Space,
+  provider: Provider | null,
+  osName: Os,
+  shim: string,
+): Promise<void> {
+  if (!provider || provider.config_env_key !== "CLAUDE_CONFIG_DIR") return;
+  const arquivo = path.join(providerConfigDir(root, provider, osName), "settings.json");
+  let atual: Record<string, unknown> = {};
+  try {
+    atual = JSON.parse(await fs.readFile(arquivo, "utf8"));
+  } catch {
+    // Não existe ou está corrompido. Começamos do zero: o terminal tem de abrir.
+    atual = {};
+  }
+  const ligado = space.security.agent_notifications === true;
+  const novo = ligado ? withNotifyHooks(atual, shim) : withoutNotifyHooks(atual);
+  await fs.mkdir(path.dirname(arquivo), { recursive: true });
+  await fs.writeFile(arquivo, `${JSON.stringify(novo, null, 2)}\n`, "utf8");
+}
+
 export async function materialize(space: Space, provider: Provider | null, realHomeDir: string, osName: Os): Promise<void> {
   // Em disco usa o separador do host (o teste roda o ramo win32 em mac/linux).
   if (!space.directory_name) throw new Error("espaço sem directory_name");
   const root = path.join(realHomeDir, ".multishell", "profiles", space.directory_name);
-  const dirs: string[] = [root];
+  const dirs: string[] = [root, path.join(root, "bin")];
   if (osName === "win32") {
     dirs.push(path.join(root, "AppData", "Roaming"), path.join(root, "AppData", "Local"), path.join(root, "Documents", "PowerShell"));
   } else {
@@ -510,6 +563,8 @@ export async function materialize(space: Space, provider: Provider | null, realH
     await fs.writeFile(path.join(zsh, ".zshenv"), zshenvContent(space), "utf8");
   }
   await fs.writeFile(path.join(root, ".bash_profile"), bashProfileContent(space, realHomeDir), "utf8");
+  const shim = await writeNotifyCli(root, osName);
+  await syncAgentHooks(root, space, provider, osName, shim);
 
   const sec = space.security;
   if (osName === "darwin") {

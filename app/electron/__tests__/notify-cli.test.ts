@@ -46,11 +46,16 @@ async function esperaPergunta(): Promise<string> {
   throw new Error("a pergunta não chegou no servidor");
 }
 
-function cli(args: string[], env: Record<string, string> = {}) {
-  return run(process.execPath, [cliJs, ...args], {
+function cli(args: string[], env: Record<string, string> = {}, stdin?: string) {
+  const p = run(process.execPath, [cliJs, ...args], {
     env: { ...process.env, MULTISHELL_NOTIFY_SOCK: sock, MULTISHELL_NOTIFY_TOKEN: token, ...env },
     timeout: 10_000,
   });
+  if (stdin !== undefined) {
+    p.child.stdin?.write(stdin);
+    p.child.stdin?.end();
+  }
+  return p;
 }
 
 describe("notify", () => {
@@ -123,5 +128,40 @@ describe("shimSource", () => {
   // O usuário pode ter instalado em "Multishell 2.app". Sem aspas o exec quebra.
   it("protege caminho com espaço", () => {
     expect(shimSource("/Apps/Multi shell.app/x", "/e/b/cli.js")).toContain('"/Apps/Multi shell.app/x"');
+  });
+});
+
+// O `hook` é o que o Claude Code chama sozinho, com a chave ligada no espaço.
+// Ele recebe o JSON do evento no stdin.
+describe("hook", () => {
+  it("Notification vira aviso com a mensagem do Claude Code", async () => {
+    await cli(["hook", "Notification"], {}, JSON.stringify({ message: "Permissão para rodar git push" }));
+    expect(center.list()[0]).toMatchObject({
+      title: "Claude precisa de você",
+      body: "Permissão para rodar git push",
+      level: "warn",
+    });
+  });
+
+  it("Stop avisa que o turno acabou", async () => {
+    await cli(["hook", "Stop"], {}, "{}");
+    expect(center.list()[0]).toMatchObject({ title: "Claude terminou o turno", level: "info" });
+  });
+
+  // Hook que falha não pode quebrar o agente. Ele sai 0 mesmo sem entender nada.
+  it("stdin vazio ainda notifica e sai com 0", async () => {
+    const { stdout } = await cli(["hook", "Stop"], {}, "");
+    expect(stdout.trim()).toBe("");
+    expect(center.list()[0].title).toBe("Claude terminou o turno");
+  });
+
+  it("evento desconhecido não derruba o agente", async () => {
+    const { stdout } = await cli(["hook", "Seja-O-Que-For"], {}, "{}");
+    expect(stdout.trim()).toBe("");
+  });
+
+  it("fora do Multishell o hook sai calado com 0: o agente segue", async () => {
+    const r = await cli(["hook", "Stop"], { MULTISHELL_NOTIFY_SOCK: "", MULTISHELL_NOTIFY_TOKEN: "" }, "{}");
+    expect(r.stdout.trim()).toBe("");
   });
 });
