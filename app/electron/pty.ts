@@ -6,6 +6,7 @@ import { readlinkSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { existsSync } from "node:fs";
 import { EVENTS, type PtyExitEvent, type PtyOutputEvent, type SpawnResult } from "./ipc";
+import { OscScanner, type OscNotice } from "./osc";
 
 export interface SpawnRequest {
   session_id: string;
@@ -46,6 +47,8 @@ interface PtySession {
   startedAt: string;
   /** Epoch ms do último byte vindo do shell. `null` enquanto ele não escreveu nada. */
   lastOutputAt: number | null;
+  /** Procura notificação (OSC 9 / 777) na saída. Guarda o pedaço partido entre rajadas. */
+  osc: OscScanner;
 }
 
 /** Uso real de uma sessão viva. Serializável: vai como está para o renderer. */
@@ -109,8 +112,16 @@ export class RingBuffer {
 
 const spawn = nodePty.spawn;
 
+/** O que o PtyManager avisa para fora. Só isso: ele não conhece a central. */
+export interface PtyManagerDeps {
+  /** Notificação achada na saída do shell (OSC 9 / 777). */
+  onNotice?: (sessionId: string, notice: OscNotice) => void;
+}
+
 export class PtyManager {
   private readonly sessions = new Map<string, PtySession>();
+
+  constructor(private readonly deps: PtyManagerDeps = {}) {}
 
   /**
    * Idempotente: se a sessão já existe, só anexa a janela e devolve o replay.
@@ -137,6 +148,7 @@ export class PtyManager {
     const session: PtySession = {
       proc, pid: proc.pid, senders: new Set([win.webContents]), buffer: new RingBuffer(),
       bytesIn: 0, bytesOut: 0, startedAt: new Date().toISOString(), lastOutputAt: null,
+      osc: new OscScanner(),
     };
     this.sessions.set(sessionId, session);
 
@@ -166,7 +178,13 @@ export class PtyManager {
   pushOutput(sessionId: string, bytes: Buffer, fromShell = true): void {
     const s = this.sessions.get(sessionId);
     if (!s) return;
-    if (fromShell) s.lastOutputAt = Date.now();
+    if (fromShell) {
+      s.lastOutputAt = Date.now();
+      // Só a saída do shell vale: aviso do próprio app não é o agente falando.
+      if (this.deps.onNotice) {
+        for (const notice of s.osc.push(bytes)) this.deps.onNotice(sessionId, notice);
+      }
+    }
     // Cópia: o Buffer do node-pty pode ser fatia de um slab compartilhado.
     const own = Buffer.from(bytes);
     s.bytesOut += own.length;

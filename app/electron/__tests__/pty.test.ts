@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { PtyManager, defaultShell, parseLsofCwd, type PtySender } from "../pty";
+import type { OscNotice } from "../osc";
 
 const isWin = process.platform === "win32";
 
@@ -270,5 +271,44 @@ describe("PtyManager: marca de atividade", () => {
     pty.spawn(win, { session_id: "act3", shell: "/bin/sh", shell_args: ["-c", "sleep 5"], inherit_env: false });
     pty.notify("act3", "bloqueado");
     expect(pty.stats("act3")!.last_output_at).toBeNull();
+  });
+});
+
+describe("notificação na saída do terminal", () => {
+  // Qualquer script pode avisar com `printf '\e]9;...\a'`. O agente não
+  // precisa saber que roda dentro do Multishell.
+  it.skipIf(isWin)("avisa o OSC 9 que o shell imprimiu", async () => {
+    const vistas: { id: string; notice: OscNotice }[] = [];
+    const pty = new PtyManager({ onNotice: (id, notice) => vistas.push({ id, notice }) });
+    managers.push(pty);
+    const { win, events } = fakeWindow();
+    pty.spawn(win, {
+      session_id: "osc1",
+      shell: "/bin/sh",
+      shell_args: ["-c", "printf '\\033]9;Build terminou\\007'"],
+      inherit_env: false,
+    });
+
+    await waitFor(() => events.some((e) => e.channel === "pty-exit"));
+    expect(vistas).toEqual([{ id: "osc1", notice: { title: "Build terminou", body: null } }]);
+  });
+
+  // O aviso do guardrail é texto do próprio app. Ele não pode virar notificação.
+  it("texto do próprio app não vira notificação", () => {
+    const vistas: OscNotice[] = [];
+    const pty = new PtyManager({ onNotice: (_id, notice) => vistas.push(notice) });
+    managers.push(pty);
+    const { win } = fakeWindow();
+    pty.spawn(win, { session_id: "osc2", shell: defaultShell(), inherit_env: false });
+    pty.notify("osc2", "\x1b]9;falso\x07");
+    expect(vistas).toEqual([]);
+  });
+
+  it("sem onNotice o pty funciona igual", () => {
+    const pty = new PtyManager();
+    managers.push(pty);
+    const { win } = fakeWindow();
+    pty.spawn(win, { session_id: "osc3", shell: defaultShell(), inherit_env: false });
+    expect(() => pty.pushOutput("osc3", Buffer.from("\x1b]9;oi\x07"))).not.toThrow();
   });
 });
