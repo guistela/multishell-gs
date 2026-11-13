@@ -17,6 +17,8 @@ export interface SpaceSecurity {
   block_destructive_commands?: boolean;
   /** Liga os hooks do Claude Code que notificam o Multishell sozinhos. */
   agent_notifications?: boolean;
+  /** Liga o hook que manda a permissão de ferramenta para o painel. */
+  agent_approvals?: boolean;
 }
 
 export interface Space {

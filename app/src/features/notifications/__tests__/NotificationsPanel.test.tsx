@@ -158,3 +158,46 @@ describe("NotificationsPanel", () => {
     expect(useAppStore.getState().notificationsOpen).toBe(false);
   });
 });
+
+// Na aprovação do Claude Code eu quero os dois: botão para decidir rápido e
+// campo livre para negar dizendo o que fazer em vez disso.
+describe("pergunta com botões e campo livre", () => {
+  const permissao = () =>
+    aviso({
+      id: "n9", title: "Permitir Bash?", body: "git push --force", level: "warn", read: false,
+      ask: { options: ["Permitir", "Negar"], placeholder: "ou diga o que fazer" }, answer: undefined,
+    });
+
+  beforeEach(() => {
+    useAppStore.setState({ notifications: [permissao()], notificationsOpen: true });
+  });
+
+  it("mostra os botões e o campo ao mesmo tempo", () => {
+    render(<NotificationsPanel />);
+    const item = screen.getByTestId("notify-item-n9");
+    expect(within(item).getByRole("button", { name: "Permitir" })).toBeInTheDocument();
+    expect(within(item).getByRole("button", { name: "Negar" })).toBeInTheDocument();
+    expect(within(item).getByPlaceholderText("ou diga o que fazer")).toBeInTheDocument();
+  });
+
+  it("o texto livre vai como resposta", async () => {
+    render(<NotificationsPanel />);
+    const item = screen.getByTestId("notify-item-n9");
+    fireEvent.change(within(item).getByPlaceholderText("ou diga o que fazer"), { target: { value: "use --force-with-lease" } });
+    fireEvent.submit(within(item).getByPlaceholderText("ou diga o que fazer"));
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("notification_answer", { id: "n9", answer: "use --force-with-lease" }),
+    );
+  });
+
+  // Sem placeholder só existem os botões: é o `ask` comum do CLI.
+  it("pergunta sem placeholder não ganha campo livre", () => {
+    useAppStore.setState({
+      notifications: [aviso({ id: "n9", ask: { options: ["sim", "não"], placeholder: null }, answer: undefined })],
+    });
+    render(<NotificationsPanel />);
+    const item = screen.getByTestId("notify-item-n9");
+    expect(within(item).getByRole("button", { name: "sim" })).toBeInTheDocument();
+    expect(within(item).queryByRole("textbox")).not.toBeInTheDocument();
+  });
+});

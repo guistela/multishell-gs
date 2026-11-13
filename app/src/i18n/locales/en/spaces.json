@@ -37,6 +37,8 @@
     "block_destructive_commands": "Block destructive commands",
     "block_destructive_commands_hint": "Multishell blocks rm -rf /, fork bombs, mkfs, dd to disk and reset --hard before the shell sees them.",
     "agent_notifications": "Automatic Claude Code alerts",
-    "agent_notifications_hint": "Claude Code notifies Multishell by itself when it needs you and when it finishes a turn. Multishell writes two hooks into the space settings.json."
+    "agent_notifications_hint": "Claude Code notifies Multishell by itself when it needs you and when it finishes a turn. Multishell writes two hooks into the space settings.json.",
+    "agent_approvals": "Approve tools in the panel",
+    "agent_approvals_hint": "Claude Code asks in the Multishell panel before it runs Bash, Write, Edit and NotebookEdit. Answer Allow, Deny, or type what to do instead. With no answer in 4 minutes, it asks in the terminal again."
   }
 }

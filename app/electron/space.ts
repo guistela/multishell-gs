@@ -8,7 +8,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ensureSpaceKeychain } from "./keychain.js";
 import { CLI_FILE, CLI_SHIM, cliSource, shimSource } from "./notify-cli.js";
-import { withNotifyHooks, withoutNotifyHooks } from "./agent-hooks.js";
+import { withApprovalHook, withNotifyHooks, withoutApprovalHook, withoutNotifyHooks } from "./agent-hooks.js";
 import { normalizeEnvVars, slug, type EnvVar, type Provider } from "./provider.js";
 
 export const PERSONAL_ID = "00000000-0000-0000-0000-000000000001";
@@ -23,6 +23,8 @@ export interface SpaceSecurity {
   block_destructive_commands?: boolean;
   /** Liga os hooks do Claude Code que notificam o Multishell sozinhos. */
   agent_notifications?: boolean;
+  /** Liga o hook que manda a permissão de ferramenta para o painel. */
+  agent_approvals?: boolean;
 }
 
 export interface Space {
@@ -70,6 +72,7 @@ export function defaultSecurity(): SpaceSecurity {
     inherit_process_env: false,
     block_destructive_commands: false,
     agent_notifications: false,
+    agent_approvals: false,
   };
 }
 
@@ -115,6 +118,7 @@ export function normalizeSecurity(raw: unknown): SpaceSecurity {
     inherit_process_env: raw.inherit_process_env === true,
     block_destructive_commands: raw.block_destructive_commands === true,
     agent_notifications: raw.agent_notifications === true,
+    agent_approvals: raw.agent_approvals === true,
   };
 }
 
@@ -520,8 +524,13 @@ async function syncAgentHooks(
     // Não existe ou está corrompido. Começamos do zero: o terminal tem de abrir.
     atual = {};
   }
-  const ligado = space.security.agent_notifications === true;
-  const novo = ligado ? withNotifyHooks(atual, shim) : withoutNotifyHooks(atual);
+  // As duas chaves são independentes: desligar uma não pode apagar a outra.
+  const comAviso = space.security.agent_notifications === true
+    ? withNotifyHooks(atual, shim)
+    : withoutNotifyHooks(atual);
+  const novo = space.security.agent_approvals === true
+    ? withApprovalHook(comAviso, shim)
+    : withoutApprovalHook(comAviso);
   await fs.mkdir(path.dirname(arquivo), { recursive: true });
   await fs.writeFile(arquivo, `${JSON.stringify(novo, null, 2)}\n`, "utf8");
 }

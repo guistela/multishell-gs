@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { MULTISHELL_HOOK_MARK, withNotifyHooks, withoutNotifyHooks } from "../agent-hooks";
+import {
+  APPROVAL_ASK_TIMEOUT_MS,
+  APPROVAL_EVENT,
+  APPROVAL_MATCHER,
+  APPROVAL_TIMEOUT_S,
+  MULTISHELL_HOOK_MARK,
+  withApprovalHook,
+  withNotifyHooks,
+  withoutApprovalHook,
+  withoutNotifyHooks,
+} from "../agent-hooks";
 
 const CLI = "/espaco/bin/multishell";
 
@@ -80,5 +90,62 @@ describe("withoutNotifyHooks", () => {
 
   it("settings corrompido devolve objeto vazio", () => {
     expect(withoutNotifyHooks(null as never)).toEqual({});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Aprovação pelo painel: o hook PreToolUse responde allow/deny ao Claude Code.
+// ---------------------------------------------------------------------------
+describe("hook de aprovação", () => {
+  it("escreve o PreToolUse com matcher e prazo", () => {
+    const s: any = withApprovalHook({}, CLI);
+    const grupo = s.hooks.PreToolUse[0];
+    expect(grupo.matcher).toBe(APPROVAL_MATCHER);
+    expect(grupo.hooks[0]).toEqual({
+      type: "command",
+      command: `${CLI} ${MULTISHELL_HOOK_MARK}${APPROVAL_EVENT}`,
+      timeout: APPROVAL_TIMEOUT_S,
+    });
+  });
+
+  it("o prazo do Claude Code é maior que o prazo da pergunta", () => {
+    // Senão o Claude Code mata o hook antes de o painel desistir.
+    expect(APPROVAL_TIMEOUT_S * 1000).toBeGreaterThan(APPROVAL_ASK_TIMEOUT_MS);
+  });
+
+  it("rodar de novo troca o caminho e não soma outro hook", () => {
+    const um: any = withApprovalHook({}, "/velho/multishell");
+    const dois: any = withApprovalHook(um, CLI);
+    expect(dois.hooks.PreToolUse).toHaveLength(1);
+    expect(nossos(dois)).toEqual([`${CLI} ${MULTISHELL_HOOK_MARK}${APPROVAL_EVENT}`]);
+  });
+
+  it("não mexe no hook PreToolUse do usuário", () => {
+    const meu = { matcher: "Bash", hooks: [{ type: "command", command: "meu-lint" }] };
+    const s: any = withoutApprovalHook(withApprovalHook({ hooks: { PreToolUse: [meu] } }, CLI));
+    expect(s.hooks.PreToolUse).toEqual([meu]);
+  });
+
+  it("desligar some com o evento quando só tinha o nosso", () => {
+    const s: any = withoutApprovalHook(withApprovalHook({}, CLI));
+    expect(s.hooks.PreToolUse).toBeUndefined();
+  });
+
+  it("aviso e aprovação convivem sem se apagar", () => {
+    const s: any = withApprovalHook(withNotifyHooks({}, CLI), CLI);
+    expect(nossos(s).sort()).toEqual([
+      `${CLI} ${MULTISHELL_HOOK_MARK}Notification`,
+      `${CLI} ${MULTISHELL_HOOK_MARK}PreToolUse`,
+      `${CLI} ${MULTISHELL_HOOK_MARK}Stop`,
+    ]);
+    // Desligar um não derruba o outro.
+    expect(nossos(withoutApprovalHook(s))).toEqual([
+      `${CLI} ${MULTISHELL_HOOK_MARK}Notification`,
+      `${CLI} ${MULTISHELL_HOOK_MARK}Stop`,
+    ]);
+  });
+
+  it("arquivo que nunca teve hooks continua sem a chave", () => {
+    expect(withoutApprovalHook({ model: "opus" })).toEqual({ model: "opus" });
   });
 });

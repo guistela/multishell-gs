@@ -6,6 +6,8 @@
 //
 // Não há rede: o socket é local e o endereço vem do ambiente da sessão.
 
+import { APPROVAL_ASK_TIMEOUT_MS, APPROVAL_EVENT } from "./agent-hooks.js";
+
 /** Nome do atalho no PATH do espaço. */
 export const CLI_SHIM = "multishell";
 /** Nome do arquivo gerado com o código do CLI. */
@@ -60,6 +62,63 @@ const EVENTOS = {
   Stop: { title: "Claude terminou o turno", level: "info", campo: "" },
 };
 
+// Aprovacao de ferramenta. O que resume cada uma no corpo do aviso.
+const CAMPO_DA_FERRAMENTA = {
+  Bash: "command",
+  Write: "file_path",
+  Edit: "file_path",
+  NotebookEdit: "notebook_path",
+};
+const PERMITIR = "Permitir";
+const NEGAR = "Negar";
+const MAX_RESUMO = 1500;
+
+/** O que o painel mostra da ferramenta. Entrada grande entra cortada. */
+function resumoDaFerramenta(nome, entrada) {
+  const campo = CAMPO_DA_FERRAMENTA[nome];
+  const valor = entrada && campo ? entrada[campo] : null;
+  const texto = valor == null ? JSON.stringify(entrada || {}) : String(valor);
+  return texto.length > MAX_RESUMO ? texto.slice(0, MAX_RESUMO) + "..." : texto;
+}
+
+/** Pergunta no painel e devolve a decisao ao Claude Code.
+ *  Sem decisao nossa ele segue o fluxo normal e pergunta no terminal. */
+function pedePermissao(dados) {
+  const nome = String(dados.tool_name || "ferramenta");
+  const req = {
+    op: "ask",
+    token: token,
+    title: "Permitir " + nome + "?",
+    body: resumoDaFerramenta(nome, dados.tool_input),
+    level: "warn",
+    options: [PERMITIR, NEGAR],
+    placeholder: "ou diga o que fazer em vez disso",
+    timeout_ms: ${APPROVAL_ASK_TIMEOUT_MS},
+  };
+  enviaEsai(req, true, function (resp) {
+    const bruto = resp.answer;
+    if (bruto === null || bruto === undefined) return;
+    const t = String(bruto).trim();
+    if (!t) return;
+    let decisao = "deny";
+    let razao = "Negado no painel do Multishell.";
+    if (t === PERMITIR) {
+      decisao = "allow";
+      razao = "Aprovado no painel do Multishell.";
+    } else if (t !== NEGAR) {
+      // Texto livre: nega e manda o recado como orientacao para o agente.
+      razao = t;
+    }
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "${APPROVAL_EVENT}",
+        permissionDecision: decisao,
+        permissionDecisionReason: razao,
+      },
+    }) + "\\n");
+  });
+}
+
 if (op === "hook") {
   const evento = argv[0] || "";
   const texto = EVENTOS[evento] || { title: "Claude: " + (evento || "evento"), level: "info", campo: "message" };
@@ -69,6 +128,7 @@ if (op === "hook") {
   process.stdin.on("end", function () {
     let dados = {};
     try { dados = JSON.parse(entrada) || {}; } catch (e) { dados = {}; }
+    if (evento === "${APPROVAL_EVENT}") { pedePermissao(dados); return; }
     const body = texto.campo ? dados[texto.campo] : null;
     enviaEsai({ op: "notify", token: token, title: texto.title, body: body ? String(body) : undefined, level: texto.level }, true);
   });
@@ -93,8 +153,9 @@ for (let i = 0; i < argv.length; i += 1) {
   enviaEsai(req, false);
 }
 
-/** Manda a requisicao e sai. calado = hook: falha nao vira erro do agente. */
-function enviaEsai(req, calado) {
+/** Manda a requisicao e sai. calado = hook: falha nao vira erro do agente.
+ *  aoResponder = quem escreve a saida; sem ele vale o formato do \`ask\`. */
+function enviaEsai(req, calado, aoResponder) {
   const falha = function (msg) { if (calado) process.exit(0); morre(msg); };
   const cliente = net.createConnection(sock);
   let buf = "";
@@ -111,6 +172,7 @@ function enviaEsai(req, calado) {
     let resp;
     try { resp = JSON.parse(buf.slice(0, corte)); } catch (e) { falha("resposta invalida"); return; }
     if (!resp.ok) { falha(resp.error || "falhou"); return; }
+    if (aoResponder) { aoResponder(resp); process.exit(0); }
     if (req.op === "ask") {
       if (resp.answer === null || resp.answer === undefined) process.exit(2);
       process.stdout.write(String(resp.answer) + "\\n");

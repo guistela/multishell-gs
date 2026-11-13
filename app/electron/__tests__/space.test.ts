@@ -22,6 +22,7 @@ import {
   zshrcContent,
   type BuildOpts,
   type Space,
+  type SpaceSecurity,
 } from "../space.js";
 import { normalizeProvider, type Provider } from "../provider.js";
 
@@ -72,6 +73,7 @@ describe("space.defaults", () => {
       inherit_process_env: false,
       block_destructive_commands: false,
       agent_notifications: false,
+      agent_approvals: false,
     });
   });
 
@@ -690,6 +692,52 @@ describe("materialize: hooks do Claude Code", () => {
     const outro = { ...claude(), name: "Codex", config_env_key: "CODEX_HOME" };
     await materialize(espaco(true), outro, home, "darwin");
     expect(fs.existsSync(path.join(home, ".multishell", "profiles", "cliente-x", "providers", "codex", "settings.json"))).toBe(false);
+  });
+});
+
+describe("materialize: aprovação pelo painel", () => {
+  let home: string;
+  beforeEach(() => { home = fs.mkdtempSync(path.join(os.tmpdir(), "multishell-ap-")); });
+  afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const claude = (): Provider => ({
+    id: "p-claude", name: "Claude Code", executable: "claude", args: [], bypass_args: [],
+    config_env_key: "CLAUDE_CONFIG_DIR", extra_env: [], icon: "", resume_args: [],
+  });
+
+  const espaco = (sec: Partial<SpaceSecurity>): Space => {
+    const s = spaceFechado();
+    s.security = { ...s.security, ...sec };
+    return s;
+  };
+
+  const ler = () => JSON.parse(fs.readFileSync(
+    path.join(home, ".multishell", "profiles", "cliente-x", "providers", "claude-code", "settings.json"), "utf8"));
+
+  it("a chave nasce desligada: espaço antigo não muda de comportamento", () => {
+    expect(spaceFechado().security.agent_approvals).toBe(false);
+  });
+
+  it("ligada, escreve o hook PreToolUse", async () => {
+    await materialize(espaco({ agent_approvals: true }), claude(), home, "darwin");
+    expect(JSON.stringify(ler().hooks.PreToolUse)).toContain("hook PreToolUse");
+  });
+
+  it("desligada, não escreve o PreToolUse", async () => {
+    await materialize(espaco({ agent_notifications: true }), claude(), home, "darwin");
+    expect(ler().hooks.PreToolUse).toBeUndefined();
+  });
+
+  it("as duas chaves são independentes", async () => {
+    await materialize(espaco({ agent_notifications: true, agent_approvals: true }), claude(), home, "darwin");
+    const todos = JSON.stringify(ler().hooks);
+    expect(todos).toContain("hook Notification");
+    expect(todos).toContain("hook PreToolUse");
+
+    // Desligar só a aprovação deixa o aviso de pé.
+    await materialize(espaco({ agent_notifications: true, agent_approvals: false }), claude(), home, "darwin");
+    expect(JSON.stringify(ler().hooks)).toContain("hook Notification");
+    expect(ler().hooks.PreToolUse).toBeUndefined();
   });
 });
 

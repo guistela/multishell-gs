@@ -15,16 +15,31 @@ export const MULTISHELL_HOOK_MARK = "hook ";
 export const HOOK_EVENTS = ["Notification", "Stop"] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
 
-interface HookCmd { type: string; command: string }
+/** O evento que pede permissão antes de a ferramenta rodar. Só ele aceita
+ *  resposta de volta: `Notification` avisa, mas não decide nada. */
+export const APPROVAL_EVENT = "PreToolUse";
+/** Quais ferramentas passam pelo painel. Só as que mexem na máquina: pôr
+ *  `Read` ou `Grep` aqui faria o agente parar a cada passo. */
+export const APPROVAL_MATCHER = "Bash|Write|Edit|NotebookEdit";
+/** Prazo da pergunta no painel. Depois disso o CLI não decide nada e o
+ *  Claude Code volta a perguntar no terminal. */
+export const APPROVAL_ASK_TIMEOUT_MS = 4 * 60 * 1000;
+/** Prazo que o Claude Code dá ao hook, em segundos. Maior que o de cima:
+ *  quem desiste primeiro tem de ser o nosso CLI, não ele. */
+export const APPROVAL_TIMEOUT_S = 300;
+
+type Evento = HookEvent | typeof APPROVAL_EVENT;
+
+interface HookCmd { type: string; command: string; timeout?: number }
 interface HookGroup { matcher?: string; hooks?: HookCmd[] }
 type Settings = Record<string, any>;
 
-function comando(cli: string, evento: HookEvent): string {
+function comando(cli: string, evento: Evento): string {
   return `${cli} ${MULTISHELL_HOOK_MARK}${evento}`;
 }
 
 /** Nosso hook termina em `hook <Evento>`. Qualquer caminho de CLI antes dele. */
-function ehNosso(h: unknown, evento: HookEvent): boolean {
+function ehNosso(h: unknown, evento: Evento): boolean {
   const cmd = (h as HookCmd | null)?.command;
   return typeof cmd === "string" && cmd.trimEnd().endsWith(`${MULTISHELL_HOOK_MARK}${evento}`);
 }
@@ -41,7 +56,7 @@ function base(settings: unknown): { s: Settings; hooks: Settings; tinha: boolean
 }
 
 /** Grupos do evento, já sem o nosso hook. Grupo que fica vazio some. */
-function semONosso(grupos: unknown, evento: HookEvent): HookGroup[] {
+function semONosso(grupos: unknown, evento: Evento): HookGroup[] {
   if (!Array.isArray(grupos)) return [];
   const out: HookGroup[] = [];
   for (const g of grupos as HookGroup[]) {
@@ -73,6 +88,31 @@ export function withoutNotifyHooks(settings: Settings): Settings {
     else delete hooks[evento];
   }
   // Arquivo que nunca teve `hooks` continua sem a chave.
+  if (tinha) s.hooks = hooks;
+  return s;
+}
+
+/** Liga a aprovação pelo painel. Idempotente, igual aos avisos. */
+export function withApprovalHook(settings: Settings, cli: string): Settings {
+  const { s, hooks } = base(settings);
+  const grupos = semONosso(hooks[APPROVAL_EVENT], APPROVAL_EVENT);
+  grupos.push({
+    matcher: APPROVAL_MATCHER,
+    hooks: [{ type: "command", command: comando(cli, APPROVAL_EVENT), timeout: APPROVAL_TIMEOUT_S }],
+  });
+  hooks[APPROVAL_EVENT] = grupos;
+  s.hooks = hooks;
+  return s;
+}
+
+/** Desliga a aprovação. Hook PreToolUse do usuário continua lá. */
+export function withoutApprovalHook(settings: Settings): Settings {
+  const { s, hooks, tinha } = base(settings);
+  if (APPROVAL_EVENT in hooks) {
+    const grupos = semONosso(hooks[APPROVAL_EVENT], APPROVAL_EVENT);
+    if (grupos.length > 0) hooks[APPROVAL_EVENT] = grupos;
+    else delete hooks[APPROVAL_EVENT];
+  }
   if (tinha) s.hooks = hooks;
   return s;
 }

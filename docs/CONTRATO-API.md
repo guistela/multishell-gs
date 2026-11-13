@@ -230,7 +230,10 @@ O agente que roda num terminal avisa o que está fazendo e, quando precisa, perg
 
 Tipos novos:
 ```ts
-interface SpaceSecurity { /* ... */ agent_notifications?: boolean }  // liga os hooks do Claude Code
+interface SpaceSecurity { /* ... */
+  agent_notifications?: boolean  // liga os hooks de aviso do Claude Code
+  agent_approvals?: boolean      // manda a permissão de ferramenta para o painel
+}
 
 type NotifyLevel = "info" | "warn" | "urgent";
 
@@ -301,6 +304,34 @@ O `PtyManager` só observa. Ele não tira bytes da saída: o xterm já ignora OS
 ### Hooks do Claude Code
 
 Com `agent_notifications` ligado no espaço, o `materialize` escreve dois hooks no `settings.json` daquele espaço: `Notification` (o agente precisa de mim) e `Stop` (o turno acabou). Só mexemos no que tem a nossa marca — hook do usuário no mesmo evento fica. Desligar a chave desfaz.
+
+### Aprovação de ferramenta pelo painel (2026-11-13)
+
+Com `agent_approvals` ligado, o `materialize` escreve também um hook `PreToolUse`. As duas chaves são independentes: desligar uma não apaga a outra.
+
+```jsonc
+"PreToolUse": [{
+  "matcher": "Bash|Write|Edit|NotebookEdit",   // APPROVAL_MATCHER
+  "hooks": [{ "type": "command", "command": "<bin do espaço>/multishell hook PreToolUse", "timeout": 300 }]
+}]
+```
+
+O `Notification` só avisa; ele não decide nada. Quem decide permissão é o `PreToolUse`, e só ele aceita resposta de volta.
+
+O CLI lê o JSON do evento no stdin, resume a ferramenta (`command` para Bash, `file_path` para Write e Edit, `notebook_path` para NotebookEdit, a entrada inteira para o resto) e abre uma pergunta no painel com os botões `Permitir` e `Negar` mais campo livre.
+
+A resposta vira decisão no stdout:
+
+| Resposta no painel | `permissionDecision` | `permissionDecisionReason` |
+|---|---|---|
+| `Permitir` | `allow` | texto fixo |
+| `Negar` | `deny` | texto fixo |
+| qualquer outro texto | `deny` | o próprio texto, como orientação ao agente |
+| dispensar, cancelar ou prazo esgotado | nada no stdout | o Claude Code volta ao fluxo normal e pergunta no terminal |
+
+O matcher é fixo de propósito. Pôr `Read` ou `Grep` nele faria o agente parar a cada passo.
+
+Prazos: a pergunta expira em 4 minutos (`APPROVAL_ASK_TIMEOUT_MS`) e o hook tem 5 minutos (`APPROVAL_TIMEOUT_S`). Quem desiste primeiro é o nosso CLI, nunca o Claude Code — assim a volta ao terminal é sempre limpa. Falha de qualquer tipo sai com 0 e sem decisão: o hook nunca bloqueia o agente.
 
 ### Persistência e badge
 

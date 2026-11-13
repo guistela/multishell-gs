@@ -165,3 +165,85 @@ describe("hook", () => {
     expect(r.stdout.trim()).toBe("");
   });
 });
+
+// ---------------------------------------------------------------------------
+// PreToolUse: a pergunta de permissão vai para o painel e a resposta volta
+// como decisão para o Claude Code.
+// ---------------------------------------------------------------------------
+describe("hook PreToolUse", () => {
+  /** A decisão que o CLI imprimiu no stdout. */
+  function decisao(stdout: string): any {
+    return JSON.parse(stdout.trim()).hookSpecificOutput;
+  }
+
+  async function pergunta(entrada: object) {
+    const correndo = cli(["hook", "PreToolUse"], {}, JSON.stringify(entrada));
+    const id = await esperaPergunta();
+    return { correndo, id };
+  }
+
+  it("mostra a ferramenta e o comando, e bloqueia esperando", async () => {
+    const { correndo, id } = await pergunta({
+      tool_name: "Bash",
+      tool_input: { command: "git push --force" },
+    });
+    const n = center.find(id)!;
+    expect(n.title).toContain("Bash");
+    expect(n.body).toBe("git push --force");
+    expect(n.level).toBe("warn");
+    // Botões e campo livre: dá para permitir, negar ou dizer o que fazer.
+    expect(n.ask?.options).toEqual(["Permitir", "Negar"]);
+    expect(n.ask?.placeholder).toBeTruthy();
+
+    center.answer(id, "Permitir");
+    srv.deliverAnswers();
+    expect(decisao((await correndo).stdout)).toMatchObject({
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+    });
+  });
+
+  it("Negar vira deny", async () => {
+    const { correndo, id } = await pergunta({ tool_name: "Bash", tool_input: { command: "rm -rf /" } });
+    center.answer(id, "Negar");
+    srv.deliverAnswers();
+    expect(decisao((await correndo).stdout)).toMatchObject({ permissionDecision: "deny" });
+  });
+
+  it("texto livre nega e vira orientação para o agente", async () => {
+    const { correndo, id } = await pergunta({ tool_name: "Bash", tool_input: { command: "npm test" } });
+    center.answer(id, "use pnpm test, não npm");
+    srv.deliverAnswers();
+    expect(decisao((await correndo).stdout)).toMatchObject({
+      permissionDecision: "deny",
+      permissionDecisionReason: "use pnpm test, não npm",
+    });
+  });
+
+  // Sem decisão nossa o Claude Code segue o fluxo normal: pergunta no terminal.
+  it("cancelar não decide nada e sai com 0", async () => {
+    const { correndo, id } = await pergunta({ tool_name: "Write", tool_input: { file_path: "/tmp/a.txt" } });
+    expect(center.find(id)?.body).toBe("/tmp/a.txt");
+    center.answer(id, null);
+    srv.deliverAnswers();
+    const { stdout } = await correndo;
+    expect(stdout.trim()).toBe("");
+  });
+
+  it("ferramenta sem campo conhecido mostra a entrada inteira", async () => {
+    const { correndo, id } = await pergunta({ tool_name: "Grep", tool_input: { pattern: "foo" } });
+    expect(center.find(id)?.body).toBe('{"pattern":"foo"}');
+    center.answer(id, "Permitir");
+    srv.deliverAnswers();
+    await correndo;
+  });
+
+  it("fora do Multishell não decide nada e sai com 0", async () => {
+    const r = await cli(
+      ["hook", "PreToolUse"],
+      { MULTISHELL_NOTIFY_SOCK: "", MULTISHELL_NOTIFY_TOKEN: "" },
+      JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" } }),
+    );
+    expect(r.stdout.trim()).toBe("");
+  });
+});

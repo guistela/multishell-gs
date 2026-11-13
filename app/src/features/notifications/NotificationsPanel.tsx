@@ -100,7 +100,11 @@ function Item({ n }: { n: AgentNotification }) {
               {o}
             </button>
           ))}
-          {n.ask!.options.length === 0 && <CampoResposta id={n.id} placeholder={n.ask!.placeholder ?? t("answerPlaceholder")} />}
+          {/* Placeholder presente = texto livre vale, mesmo com botão. É assim que
+              eu nego uma ferramenta dizendo o que fazer em vez dela. */}
+          {(n.ask!.options.length === 0 || n.ask!.placeholder) && (
+            <CampoResposta id={n.id} placeholder={n.ask!.placeholder ?? t("answerPlaceholder")} />
+          )}
           <button type="button" className="notify-cancel" onClick={() => void responder(n.id, null)}>
             {t("cancel")}
           </button>
