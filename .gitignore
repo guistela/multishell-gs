@@ -70,3 +70,6 @@ app/out/
 app/release/
 app/dist/
 !app/pnpm-lock.yaml
+
+# Estado local de ferramenta, nao do projeto.
+.peers/

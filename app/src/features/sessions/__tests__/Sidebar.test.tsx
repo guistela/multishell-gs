@@ -298,3 +298,35 @@ describe("Sidebar: ordem dos espaços", () => {
     expect(order()).toEqual([`space-${spaceB.id}`, `space-${spaceA.id}`]);
   });
 });
+
+describe("Sidebar: badge das notificações", () => {
+  const ZERO = { total: 0, unread: 0, pending: 0, bySession: {}, bySpace: {} };
+
+  it("sem aviso, nenhum badge", () => {
+    useAppStore.setState({ notifyCounts: ZERO });
+    render(<Sidebar onOpenSettings={() => {}} />);
+    expect(screen.queryByTestId(`space-notify-${spaceA.id}`)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-notify-s1")).not.toBeInTheDocument();
+  });
+
+  it("mostra a conta no espaço e no terminal que mandou", () => {
+    useAppStore.setState({ notifyCounts: { ...ZERO, total: 2, bySpace: { [spaceA.id]: 2 }, bySession: { s1: 2 } } });
+    render(<Sidebar onOpenSettings={() => {}} />);
+    expect(screen.getByTestId(`space-notify-${spaceA.id}`)).toHaveTextContent("2");
+    expect(screen.getByTestId("session-notify-s1")).toHaveTextContent("2");
+  });
+
+  // Espaço fechado esconde os terminais. O badge do espaço é o que sobra para eu ver.
+  it("o badge do espaço aparece mesmo com o espaço fechado", () => {
+    useAppStore.setState({ notifyCounts: { ...ZERO, total: 1, bySpace: { [spaceA.id]: 1 }, bySession: { s1: 1 } } });
+    render(<Sidebar onOpenSettings={() => {}} />);
+    fireEvent.click(screen.getByTestId(`collapse-space-${spaceA.id}`));
+    expect(screen.getByTestId(`space-notify-${spaceA.id}`)).toHaveTextContent("1");
+  });
+
+  it("espaço sem aviso não ganha badge por causa do vizinho", () => {
+    useAppStore.setState({ notifyCounts: { ...ZERO, total: 1, bySpace: { [spaceA.id]: 1 } } });
+    render(<Sidebar onOpenSettings={() => {}} />);
+    expect(screen.queryByTestId(`space-notify-${spaceB.id}`)).not.toBeInTheDocument();
+  });
+});

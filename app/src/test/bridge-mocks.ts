@@ -1,7 +1,7 @@
 // Instala um `window.multishell` falso para os testes do renderer.
 // Importar este módulo já instala a bridge (platform "darwin").
 import { vi } from "vitest";
-import type { MultishellBridge, SessionDrag, PtyExit, SessionReattached, ShortcutAction, StoreChanged } from "../bridge";
+import type { MultishellBridge, NotifyCountsEvent, SessionDrag, PtyExit, SessionReattached, ShortcutAction, StoreChanged } from "../bridge";
 import type { Provider, Space } from "../types";
 
 export const invokeMock = vi.fn();
@@ -15,6 +15,7 @@ export const exitListeners = new Set<(exit: PtyExit) => void>();
 export const shortcutListeners = new Set<(action: ShortcutAction) => void>();
 export const sessionReattachedListeners = new Set<(e: SessionReattached) => void>();
 export const storeChangedListeners = new Set<(e: StoreChanged) => void>();
+export const notifyListeners = new Set<(e: NotifyCountsEvent) => void>();
 
 export function makeBridge(overrides: Partial<MultishellBridge> = {}): MultishellBridge {
   return {
@@ -42,6 +43,10 @@ export function makeBridge(overrides: Partial<MultishellBridge> = {}): Multishel
       storeChangedListeners.add(cb);
       return () => { storeChangedListeners.delete(cb); };
     },
+    onNotificationsChanged(cb) {
+      notifyListeners.add(cb);
+      return () => { notifyListeners.delete(cb); };
+    },
     pathForFile: (file) => pathForFileMock(file),
     platform: "darwin",
     ...overrides,
@@ -67,6 +72,7 @@ export function resetBridge(): void {
   sessionReattachedListeners.clear();
   storeChangedListeners.clear();
   sessionDragListeners.clear();
+  notifyListeners.clear();
   installBridge();
 }
 
@@ -96,3 +102,8 @@ export const security = { load_user_shell_profile: false, share_keychain: false,
 export const spaceA: Space = { id: "sp-a", name: "Pessoal", color_hex: "#ff0000", directory_name: "personal", custom_env: [], security, created_at: "2026-01-01T00:00:00Z" };
 export const spaceB: Space = { id: "sp-b", name: "Trabalho", color_hex: "#00ff00", directory_name: "work", custom_env: [], security, created_at: "2026-01-01T00:00:00Z" };
 export const claude: Provider = { id: "pv-claude", name: "Claude Code", executable: "claude", args: [], bypass_args: ["--dangerously-skip-permissions"], config_env_key: "CLAUDE_CONFIG_DIR", extra_env: [], icon: "sparkles", resume_args: ["--continue"] };
+
+export function emitNotificationsChanged(counts: Partial<NotifyCountsEvent> = {}): void {
+  const full: NotifyCountsEvent = { total: 0, unread: 0, pending: 0, bySession: {}, bySpace: {}, ...counts };
+  notifyListeners.forEach((cb) => cb(full));
+}

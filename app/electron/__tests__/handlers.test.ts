@@ -69,6 +69,7 @@ import { COMMANDS } from "../ipc";
 import { Store } from "../store";
 import { createHandlers, registerHandlers, type Handlers } from "../handlers";
 import { assertWorkDir } from "../snapshot";
+import { NotificationCenter } from "../notifications";
 
 let dir: string;
 let h: Handlers;
@@ -840,5 +841,125 @@ describe("exportar e importar configurações", () => {
     make({ open: bad });
     await expect(async () => call("settings_import")).rejects.toThrow(/Multishell/);
     expect(store.get<any[]>("spaces")!.map((s) => s.id)).toEqual(["sp-a"]);
+  });
+});
+
+describe("notificações dos agentes", () => {
+  let center: NotificationCenter;
+  let registrados: Array<[string, string | null]>;
+  let soltos: string[];
+  let entregas: number;
+  let eventos: Array<{ channel: string; payload: any }>;
+  let hn: Handlers;
+
+  const chamar = (name: keyof Handlers, args: Record<string, unknown> = {}) => hn[name](args, ctx);
+
+  beforeEach(() => {
+    let n = 0;
+    center = new NotificationCenter({ newId: () => `n${++n}` });
+    registrados = [];
+    soltos = [];
+    entregas = 0;
+    eventos = [];
+    hn = createHandlers({
+      store: new Store(dir),
+      pty: { spawn: vi.fn(), write: vi.fn(), resize: vi.fn(), kill: vi.fn(), cwd: vi.fn(async () => "/x") } as any,
+      userDataDir: dir,
+      openPath,
+      notifications: center,
+      notifySocket: "/tmp/ms.sock",
+      notifyServer: {
+        register: (s: string, e: string | null) => { registrados.push([s, e]); return `tok-${s}`; },
+        unregister: (s: string) => void soltos.push(s),
+        deliverAnswers: () => void (entregas += 1),
+      },
+      broadcast: (channel, payload) => void eventos.push({ channel, payload }),
+    });
+  });
+
+  it("notifications_list devolve da mais nova para a mais velha", async () => {
+    center.add({ session_id: "s1", space_id: "e1", title: "a" });
+    center.add({ session_id: "s1", space_id: "e1", title: "b" });
+    expect(((await chamar("notifications_list")) as any[]).map((x) => x.title)).toEqual(["b", "a"]);
+  });
+
+  it("notifications_counts é o número do badge", async () => {
+    center.add({ session_id: "s1", space_id: "e1", title: "a" });
+    expect(await chamar("notifications_counts")).toMatchObject({ total: 1, bySession: { s1: 1 }, bySpace: { e1: 1 } });
+  });
+
+  it("notification_answer grava a resposta e solta quem espera", async () => {
+    const n = center.add({ session_id: "s1", space_id: "e1", title: "p?", ask: { options: [], placeholder: null } });
+    await chamar("notification_answer", { id: n.id, answer: "sim" });
+    expect(center.find(n.id)?.answer).toBe("sim");
+    expect(entregas).toBe(1);
+  });
+
+  it("notification_dismiss tira do painel", async () => {
+    const n = center.add({ session_id: "s1", space_id: "e1", title: "a" });
+    await chamar("notification_dismiss", { id: n.id });
+    expect(center.list()).toHaveLength(0);
+  });
+
+  it("notifications_dismiss_all sem sessão limpa tudo", async () => {
+    center.add({ session_id: "s1", space_id: "e1", title: "a" });
+    center.add({ session_id: "s2", space_id: "e1", title: "b" });
+    await chamar("notifications_dismiss_all");
+    expect(center.list()).toHaveLength(0);
+  });
+
+  it("notifications_mark_read zera o não lido da sessão", async () => {
+    center.add({ session_id: "s1", space_id: "e1", title: "a" });
+    await chamar("notifications_mark_read", { sessionId: "s1" });
+    expect(center.counts().unread).toBe(0);
+  });
+
+  // Toda janela precisa saber: o badge vive na barra lateral e na principal.
+  it("mudança avisa as outras janelas", async () => {
+    const n = center.add({ session_id: "s1", space_id: "e1", title: "a" });
+    await chamar("notification_dismiss", { id: n.id });
+    expect(eventos.at(-1)).toMatchObject({ channel: "notifications-changed" });
+  });
+
+  it("o que foi dispensado não volta depois de reabrir o app", async () => {
+    center.add({ session_id: "s1", space_id: "e1", title: "fica" });
+    const sai = center.add({ session_id: "s1", space_id: "e1", title: "sai" });
+    await chamar("notification_dismiss", { id: sai.id });
+    expect((new Store(dir).get("notifications") as any[]).map((x) => x.title)).toEqual(["fica"]);
+  });
+
+  describe("ambiente da sessão", () => {
+    it("o spawn dá à sessão o endereço do socket e o token dela", async () => {
+      const pty = { spawn: vi.fn(), write: vi.fn(), resize: vi.fn(), kill: vi.fn(), cwd: vi.fn(async () => "/x") };
+      const h2 = createHandlers({
+        store: new Store(dir), pty: pty as any, userDataDir: dir, openPath,
+        notifications: center, notifySocket: "/tmp/ms.sock",
+        notifyServer: {
+          register: (s: string) => `tok-${s}`,
+          unregister: () => {},
+          deliverAnswers: () => {},
+        },
+      });
+      h2.pty_spawn({ req: { session_id: "s9", space_id: "sp-a", shell: "/bin/zsh", env: { HOME: "/h" } } }, ctx);
+      const env = pty.spawn.mock.calls[0][1].env;
+      expect(env).toMatchObject({
+        HOME: "/h",
+        MULTISHELL_NOTIFY_SOCK: "/tmp/ms.sock",
+        MULTISHELL_NOTIFY_TOKEN: "tok-s9",
+        MULTISHELL_SESSION_ID: "s9",
+      });
+    });
+
+    it("sem servidor de notificação o spawn continua funcionando", () => {
+      const pty = { spawn: vi.fn(), write: vi.fn(), resize: vi.fn(), kill: vi.fn(), cwd: vi.fn(async () => "/x") };
+      const h2 = createHandlers({ store: new Store(dir), pty: pty as any, userDataDir: dir, openPath });
+      h2.pty_spawn({ req: { session_id: "s9", shell: "/bin/zsh" } }, ctx);
+      expect(pty.spawn.mock.calls[0][1].env.MULTISHELL_NOTIFY_SOCK).toBeUndefined();
+    });
+
+    it("pty_kill invalida o token da sessão", async () => {
+      await chamar("pty_kill", { sessionId: "s9" });
+      expect(soltos).toEqual(["s9"]);
+    });
   });
 });

@@ -35,6 +35,8 @@
     "inherit_process_env": "Inherit app env",
     "inherit_process_env_hint": "The app process variables pass to the shell.",
     "block_destructive_commands": "Block destructive commands",
-    "block_destructive_commands_hint": "Multishell blocks rm -rf /, fork bombs, mkfs, dd to disk and reset --hard before the shell sees them."
+    "block_destructive_commands_hint": "Multishell blocks rm -rf /, fork bombs, mkfs, dd to disk and reset --hard before the shell sees them.",
+    "agent_notifications": "Automatic Claude Code alerts",
+    "agent_notifications_hint": "Claude Code notifies Multishell by itself when it needs you and when it finishes a turn. Multishell writes two hooks into the space settings.json."
   }
 }

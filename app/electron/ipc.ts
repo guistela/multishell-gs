@@ -52,6 +52,12 @@ export const COMMANDS = [
   "snapshot_list",
   "snapshot_restore",
   "snapshot_delete",
+  "notifications_list",
+  "notifications_counts",
+  "notification_answer",
+  "notification_dismiss",
+  "notifications_dismiss_all",
+  "notifications_mark_read",
 ] as const;
 
 export type Command = (typeof COMMANDS)[number];
@@ -64,6 +70,7 @@ export const EVENTS = {
   sessionReattached: "session-reattached",
   storeChanged: "store-changed",
   sessionDrag: "session-drag",
+  notificationsChanged: "notifications-changed",
 } as const;
 
 export interface PtyOutputEvent { session_id: string; data: Uint8Array }
@@ -77,3 +84,12 @@ export type WindowRole = { role: "main" } | { role: "detached"; session_id: stri
 export type SpawnResult = { attached: false } | { attached: true; replay: Uint8Array };
 
 export interface SessionDragEvent { session_id: string; detached: boolean; action: "detach" | "reattach" | "none" }
+
+/** Algo mudou na central de notificações. O payload já traz o número do badge. */
+export interface NotificationsChangedEvent {
+  total: number;
+  unread: number;
+  pending: number;
+  bySession: Record<string, number>;
+  bySpace: Record<string, number>;
+}

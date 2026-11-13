@@ -1,0 +1,17 @@
+{
+  "bell": "Avisos dos agentes",
+  "bellWith": "Avisos dos agentes: {{count}} pendente",
+  "bellWith_other": "Avisos dos agentes: {{count}} pendentes",
+  "title": "Avisos dos agentes",
+  "empty": "Nenhum aviso. Os agentes avisam por aqui quando precisam de você.",
+  "emptyHint": "No terminal: multishell notify \"terminei\"",
+  "dismiss": "Dispensar",
+  "dismissAll": "Dispensar tudo",
+  "answer": "Responder",
+  "answerPlaceholder": "Sua resposta",
+  "cancel": "Cancelar",
+  "pending": "Esperando você",
+  "goToSession": "Ir para o terminal",
+  "unknownSession": "terminal fechado",
+  "level": { "info": "Aviso", "warn": "Atenção", "urgent": "Urgente" }
+}

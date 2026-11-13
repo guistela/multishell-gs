@@ -35,6 +35,8 @@
     "inherit_process_env": "Herdar env do app",
     "inherit_process_env_hint": "As variáveis do processo do app passam para o shell.",
     "block_destructive_commands": "Bloquear comandos destrutivos",
-    "block_destructive_commands_hint": "O Multishell barra rm -rf /, fork bomb, mkfs, dd em disco e reset --hard antes do shell receber."
+    "block_destructive_commands_hint": "O Multishell barra rm -rf /, fork bomb, mkfs, dd em disco e reset --hard antes do shell receber.",
+    "agent_notifications": "Avisos automáticos do Claude Code",
+    "agent_notifications_hint": "O Claude Code avisa o Multishell sozinho quando precisa de você e quando termina o turno. O Multishell escreve dois hooks no settings.json do espaço."
   }
 }

@@ -1,0 +1,260 @@
+/* Sino, badge e painel dos avisos dos agentes. */
+
+.titlebar-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  margin-left: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+.titlebar-bell:hover,
+.titlebar-bell.is-open {
+  background: #202736;
+  border-color: #3b4356;
+  color: var(--fg);
+}
+/* Pergunta esperando é mais urgente que novidade: o sino muda de cor e pulsa. */
+.titlebar-bell.has-pending {
+  color: #f0b429;
+}
+.titlebar-bell.has-pending .notify-badge {
+  background: #f0b429;
+  color: #1a1d24;
+  animation: notify-pulse 1.4s ease-in-out infinite;
+}
+
+.notify-badge {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+@keyframes notify-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Badges na barra lateral: mesma forma do contador de terminais. */
+.space-notify-badge,
+.session-notify-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.session-notify-badge { margin-left: auto; }
+
+/* ---- painel ---- */
+
+.notify-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.notify-panel {
+  position: fixed;
+  top: 38px;
+  right: 10px;
+  z-index: 61;
+  width: 360px;
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  background: #141922;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.notify-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.notify-dismiss-all {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.notify-dismiss-all:hover { color: var(--fg); }
+
+.notify-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px 16px;
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.notify-empty code {
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 5px;
+  font-size: 11px;
+  color: #58a6ff;
+}
+
+.notify-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.notify-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 2px solid transparent;
+}
+.notify-item.level-warn { border-left-color: #f0b429; }
+.notify-item.level-urgent { border-left-color: #e5484d; }
+.notify-item.is-pending { background: rgba(240, 180, 41, 0.06); border-left-color: #f0b429; }
+
+.notify-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.notify-title {
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.notify-head time {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.notify-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.notify-dismiss:hover { color: var(--fg); }
+
+.notify-body {
+  margin: 4px 0 0;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notify-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 10.5px;
+}
+.notify-source {
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.notify-source:hover:not(:disabled) { color: var(--fg); background: rgba(255, 255, 255, 0.12); }
+.notify-source:disabled { cursor: default; opacity: 0.55; }
+.notify-pending-tag { color: #f0b429; font-weight: 600; }
+.notify-answered { color: #3ddc84; }
+
+.notify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.notify-option,
+.notify-send {
+  background: #1f6feb;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+}
+.notify-option:hover,
+.notify-send:hover { background: #2d7dfa; }
+.notify-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 10px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.notify-cancel:hover { color: var(--fg); border-color: #3b4356; }
+
+.notify-answer {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 180px;
+}
+.notify-answer input {
+  flex: 1;
+  min-width: 0;
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 8px;
+  color: var(--fg);
+  font-size: 11.5px;
+}
+.notify-answer input:focus {
+  outline: none;
+  border-color: #1f6feb;
+}

@@ -223,3 +223,87 @@ Regras do front:
 
 
 
+
+## Notificações dos agentes (2026-11-13)
+
+O agente que roda num terminal avisa o que está fazendo e, quando precisa, pergunta e espera a resposta.
+
+Tipos novos:
+```ts
+interface SpaceSecurity { /* ... */ agent_notifications?: boolean }  // liga os hooks do Claude Code
+
+type NotifyLevel = "info" | "warn" | "urgent";
+
+interface AgentNotification {
+  id: string; session_id: string; space_id: string | null;
+  title: string; body: string | null; level: NotifyLevel;
+  created_at: string;                                   // RFC3339
+  ask: { options: string[]; placeholder: string | null } | null;  // presente = pergunta
+  answer?: string | null;                               // undefined = esperando; null = cancelada
+  read: boolean;
+}
+
+interface NotifyCounts {
+  total: number;      // o número do badge: não lidas + perguntas sem resposta
+  unread: number; pending: number;
+  bySession: Record<string, number>;
+  bySpace: Record<string, number>;
+}
+```
+
+Commands novos:
+| Command | Args | Retorno |
+|---|---|---|
+| `notifications_list` | | `AgentNotification[]` (mais nova primeiro) |
+| `notifications_counts` | | `NotifyCounts` |
+| `notification_answer` | `id, answer: string \| null` | `void` |
+| `notification_dismiss` | `id` | `void` |
+| `notifications_dismiss_all` | `session_id?` | `void` |
+| `notifications_mark_read` | `session_id?` | `void` |
+
+Evento novo: `notifications-changed` → `NotifyCounts`. Vai para todas as janelas a cada mudança. O badge chega pronto: nenhuma janela precisa perguntar quanto é.
+
+### Como o aviso chega ao main
+
+Dois caminhos, os dois locais.
+
+**1. O CLI `multishell`.** O `materialize` grava `<espaço>/bin/multishell` a cada abertura de terminal, e o `bin` entra na frente do PATH. O atalho chama o binário do Electron em modo node: o espaço isolado pode não ter node nenhum.
+
+```
+multishell notify <titulo> [--body texto] [--level info|warn|urgent]
+multishell ask <pergunta> [--option X]... [--placeholder texto] [--timeout segundos]
+multishell hook <evento>        # chamado pelo Claude Code; lê o JSON do evento no stdin
+```
+
+`ask` bloqueia e escreve a resposta no stdout. Sai com 2 quando ninguém responde: o agente distingue "não" de "sem resposta". O prazo padrão é uma hora.
+
+O canal é um unix socket no macOS e no Linux, e um named pipe no Windows. **Sem rede: nenhuma porta TCP, nenhum endereço, nada sai do computador.** O arquivo do socket fica 0600.
+
+O `pty_spawn` põe três variáveis no ambiente da sessão:
+
+| Variável | O que é |
+|---|---|
+| `MULTISHELL_NOTIFY_SOCK` | endereço do socket local |
+| `MULTISHELL_NOTIFY_TOKEN` | token daquela sessão |
+| `MULTISHELL_SESSION_ID` | id da sessão |
+
+O token é quem diz de qual sessão a notificação veio: o cliente não escolhe. Assim um espaço não fala pela sessão de outro. `pty_kill` invalida o token e solta quem esperava resposta.
+
+**2. OSC na saída do terminal.** Funciona com qualquer agente, sem configurar nada:
+
+```
+ESC ] 9 ; texto BEL                            # iTerm2, Windows Terminal
+ESC ] 777 ; notify ; título ; corpo BEL        # urxvt, notify-send
+```
+
+O `PtyManager` só observa. Ele não tira bytes da saída: o xterm já ignora OSC que não conhece, e remover bytes quebraria o replay do ring buffer.
+
+### Hooks do Claude Code
+
+Com `agent_notifications` ligado no espaço, o `materialize` escreve dois hooks no `settings.json` daquele espaço: `Notification` (o agente precisa de mim) e `Stop` (o turno acabou). Só mexemos no que tem a nossa marca — hook do usuário no mesmo evento fica. Desligar a chave desfaz.
+
+### Persistência e badge
+
+A central guarda em `<userData>/notifications.json`. O que eu não vi antes de fechar o app continua lá. Teto de 200, mas pergunta pendente nunca é descartada: o agente ficaria bloqueado para sempre. Ao restaurar, toda pergunta pendente volta cancelada — quem esperava a resposta era um processo que já morreu junto com o app.
+
+O badge aparece no sino da barra de título, no espaço e no terminal da barra lateral, e no dock (macOS e Linux). Fora do app, o macOS também avisa pelo Centro de Notificações; dentro dele, o painel e o badge bastam.

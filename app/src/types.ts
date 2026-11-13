@@ -57,4 +57,29 @@ export interface MigrationReport { spaces: number; providers: number; sessions: 
 export const LAYOUT_MODES = ["single", "list", "grid", "vertical", "horizontal"] as const;
 export type LayoutMode = (typeof LAYOUT_MODES)[number];
 
+export type NotifyLevel = "info" | "warn" | "urgent";
 
+/** Aviso que um agente mandou de dentro de um terminal. */
+export interface AgentNotification {
+  id: string;
+  session_id: string;
+  space_id: string | null;
+  title: string;
+  body: string | null;
+  level: NotifyLevel;
+  created_at: string;
+  /** Presente = pergunta esperando por mim. `options` vazio = resposta livre. */
+  ask: { options: string[]; placeholder: string | null } | null;
+  /** `undefined` = ainda esperando. `null` = cancelada. */
+  answer?: string | null;
+  read: boolean;
+}
+
+/** Os números do badge. `total` é o que aparece no sino. */
+export interface NotifyCounts {
+  total: number;
+  unread: number;
+  pending: number;
+  bySession: Record<string, number>;
+  bySpace: Record<string, number>;
+}

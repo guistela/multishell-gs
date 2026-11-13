@@ -21,6 +21,8 @@ import { saveClipboardImage } from "./clipboard-image";
 import { readProcessStats } from "./process-memory";
 import { listAuthSessions } from "./auth-sessions";
 import { isValidMcpName, syncSpaceMcpConfig, type McpServerConfig } from "./mcp";
+import type { NotificationCenter } from "./notifications";
+import type { NotifyServer } from "./notify-server";
 
 /** PATH dos subprocessos do espaço (gh, git, az). Mesmas pastas do terminal, sem duplicata. */
 function spaceSubprocessPath(): string {
@@ -39,6 +41,8 @@ export const MCP_STORE = "mcp-servers";
 export const PROVIDERS_STORE = "providers";
 export const LAYOUTS_STORE = "workspace-layouts";
 export const SETTINGS_STORE = "settings";
+/** Notificações dos agentes. Sobrevive ao fechar o app: o que perdi continua lá. */
+export const NOTIFICATIONS_STORE = "notifications";
 
 export interface HandlerDeps {
   store: Store;
@@ -76,6 +80,12 @@ export interface HandlerDeps {
   pickSaveFile?: (defaultName: string, sender: PtySender) => Promise<string | null>;
   /** Diálogo "Abrir" do import. null = cancelado. */
   pickOpenFile?: (sender: PtySender) => Promise<string | null>;
+  /** Central de notificações dos agentes. Sem ela, os commands devolvem vazio. */
+  notifications?: NotificationCenter;
+  /** Servidor local do CLI `multishell`. Dá o token de cada sessão. */
+  notifyServer?: Pick<NotifyServer, "register" | "unregister" | "deliverAnswers">;
+  /** Endereço do socket local. Vai para o ambiente da sessão. */
+  notifySocket?: string;
 }
 
 export interface HandlerContext {
@@ -98,6 +108,15 @@ export function createHandlers(deps: HandlerDeps): Handlers {
   const windows = (): NonNullable<HandlerDeps["windows"]> => {
     if (!deps.windows) throw new Error("gerenciador de janelas indisponível");
     return deps.windows;
+  };
+
+  const notifications = deps.notifications;
+
+  /** Grava o painel em disco e avisa todas as janelas. Uma coisa só, um lugar só. */
+  const notifyChanged = (): void => {
+    if (!notifications) return;
+    store.set(NOTIFICATIONS_STORE, notifications.toJSON());
+    broadcast(EVENTS.notificationsChanged, notifications.counts());
   };
 
   const writeGuard = new WriteGuard();
@@ -333,9 +352,40 @@ export function createHandlers(deps: HandlerDeps): Handlers {
     pty_spawn: ({ req }, ctx) => {
       const request = { ...(req as SpawnRequest) };
       request.env = { ...(request.env ?? {}), ...resolveSpawnSecrets(request.space_id, request.provider_id) };
+      // O CLI `multishell` acha o servidor por estas três variáveis. O token é
+      // por sessão: um espaço não fala pela sessão de outro.
+      if (deps.notifyServer && deps.notifySocket) {
+        request.env.MULTISHELL_NOTIFY_SOCK = deps.notifySocket;
+        request.env.MULTISHELL_NOTIFY_TOKEN = deps.notifyServer.register(request.session_id, request.space_id ?? null);
+        request.env.MULTISHELL_SESSION_ID = request.session_id;
+      }
       return pty.spawn({ webContents: ctx.sender }, request);
     },
     pty_attach: ({ sessionId }, ctx) => pty.attach(str(sessionId, "session_id"), ctx.sender),
+
+    notifications_list: () => notifications?.list() ?? [],
+    notifications_counts: () =>
+      notifications?.counts() ?? { total: 0, unread: 0, pending: 0, bySession: {}, bySpace: {} },
+    notification_answer: ({ id, answer }) => {
+      notifications?.answer(str(id, "id"), answer == null ? null : String(answer));
+      // Solta o CLI do agente, que está bloqueado esperando esta resposta.
+      deps.notifyServer?.deliverAnswers();
+      notifyChanged();
+    },
+    notification_dismiss: ({ id }) => {
+      notifications?.dismiss(str(id, "id"));
+      deps.notifyServer?.deliverAnswers();
+      notifyChanged();
+    },
+    notifications_dismiss_all: ({ sessionId }) => {
+      notifications?.dismissAll(sessionId ? String(sessionId) : undefined);
+      deps.notifyServer?.deliverAnswers();
+      notifyChanged();
+    },
+    notifications_mark_read: ({ sessionId }) => {
+      notifications?.markRead(sessionId ? String(sessionId) : undefined);
+      notifyChanged();
+    },
     pty_write: ({ sessionId, data }) => {
       const id = str(sessionId, "session_id");
       if (!guardEnabledFor(id)) {
@@ -355,6 +405,7 @@ export function createHandlers(deps: HandlerDeps): Handlers {
     pty_kill: ({ sessionId }) => {
       const id = str(sessionId, "session_id");
       writeGuard.reset(id);
+      deps.notifyServer?.unregister(id);
       pty.kill(id);
     },
     pty_cwd: ({ sessionId }) => pty.cwd(str(sessionId, "session_id")),

@@ -4,7 +4,7 @@ import { pty } from "./features/terminal/pty";
 import { api } from "./api";
 import { setLanguage } from "./i18n";
 import { LAYOUT_MODES, type LayoutMode } from "./types";
-import type { MigrationReport, Provider, Session, Space, TerminalSettings } from "./types";
+import type { AgentNotification, MigrationReport, NotifyCounts, Provider, Session, Space, TerminalSettings } from "./types";
 
 export const DEFAULT_SETTINGS: TerminalSettings = {
   shell: null, default_cwd: null, font_family: "SF Mono, Menlo, Consolas, monospace",
@@ -43,6 +43,19 @@ interface AppState {
   /** Ids das sessões restauradas em load(). O Terminal consome ao fazer o resume. */
   restoredSessionIds: Set<string>;
 
+  /** O que os agentes mandaram, da mais nova para a mais velha. */
+  notifications: AgentNotification[];
+  /** Os números do badge. Chegam pelo evento do main, sem pedir. */
+  notifyCounts: NotifyCounts;
+  notificationsOpen: boolean;
+  loadNotifications: () => Promise<void>;
+  /** Abrir o painel marca tudo como lido: o que eu vi deixa de ser novidade. */
+  setNotificationsOpen: (open: boolean) => Promise<void>;
+  /** `answer` null = cancelei. O agente bloqueado é solto do mesmo jeito. */
+  answerNotification: (id: string, answer: string | null) => Promise<void>;
+  dismissNotification: (id: string) => Promise<void>;
+  dismissAllNotifications: (sessionId?: string) => Promise<void>;
+
   load: () => Promise<void>;
   reloadUiState: () => Promise<void>;
   /** Relê espaços, providers, configurações e layouts. Sessões abertas ficam como estão. */
@@ -80,6 +93,47 @@ export const useAppStore = create<AppState>((set, get) => ({
   spaces: [], providers: [], sessions: [], selectedSessionId: null, settings: DEFAULT_SETTINGS, loaded: false, loadError: null,
   migration: null, restoredSessionIds: new Set(), selectedSpaceId: null, spaceLayouts: {}, spaceSizes: {},
   confirmation: null, notice: null, recentlyClosed: [],
+  notifications: [], notifyCounts: { total: 0, unread: 0, pending: 0, bySession: {}, bySpace: {} },
+  notificationsOpen: false,
+
+  loadNotifications: async () => {
+    try {
+      const [lista, contas] = await Promise.all([api.notificationsList(), api.notificationsCounts()]);
+      // Main velho ou resposta vazia não pode zerar o estado da tela.
+      set({
+        ...(Array.isArray(lista) ? { notifications: lista } : {}),
+        ...(contas && typeof contas === "object" ? { notifyCounts: contas } : {}),
+      });
+    } catch {
+      // O main é a fonte. Sem ele, o que está na tela continua valendo.
+    }
+  },
+
+  setNotificationsOpen: async (open) => {
+    set({ notificationsOpen: open });
+    if (!open) return;
+    await api.notificationsMarkRead();
+    await get().loadNotifications();
+  },
+
+  answerNotification: async (id, answer) => {
+    await api.notificationAnswer(id, answer);
+    await get().loadNotifications();
+  },
+
+  // Sai da tela na hora: esperar o main voltar deixa o clique com cara de travado.
+  dismissNotification: async (id) => {
+    set((st) => ({ notifications: st.notifications.filter((n) => n.id !== id) }));
+    await api.notificationDismiss(id);
+    await get().loadNotifications();
+  },
+
+  dismissAllNotifications: async (sessionId) => {
+    set((st) => ({ notifications: sessionId ? st.notifications.filter((n) => n.session_id !== sessionId) : [] }));
+    await api.notificationsDismissAll(sessionId);
+    await get().loadNotifications();
+  },
+
   reopenSession: () => {
     const old = get().recentlyClosed[get().recentlyClosed.length - 1];
     if (!old || !get().spaces.some((s) => s.id === old.space_id)) return;

@@ -13,6 +13,9 @@ import SettingsView from "./features/settings/SettingsView";
 import { QuickSearchModal } from "./features/sessions/QuickSearchModal";
 import { bridge } from "./bridge";
 import { UpdateNotice } from "./features/updates/UpdateNotice";
+import { NotificationsBell } from "./features/notifications/NotificationsBell";
+import { NotificationsPanel } from "./features/notifications/NotificationsPanel";
+import { watchNotifications } from "./features/notifications/watch";
 import { useAppStore } from "./store";
 import "./App.css";
 
@@ -30,7 +33,10 @@ export default function App() {
     const offReattach = bridge().onSessionReattached(({ session_id }) => {
       useAppStore.setState((state) => ({ sessions: state.sessions.map((s) => s.id === session_id ? { ...s, detached: false } : s) }));
     });
-    return () => { offStore(); offReattach(); };
+    // O badge chega pronto no evento. A lista só quando o painel está aberto.
+    const offNotify = watchNotifications();
+    void useAppStore.getState().loadNotifications();
+    return () => { offStore(); offReattach(); offNotify(); };
   }, []);
   const id = detachedSessionIdFromHash(window.location.hash);
   return <>{id ? <DetachedApp sessionId={id} /> : <MainApp />}<SessionDropOverlay detachedSessionId={id} /><SessionFeedback /></>;
@@ -154,6 +160,7 @@ function MainApp() {
           <span className="titlebar-search-label">{t("search.buttonLabel")}</span>
           <kbd>{typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac") ? "⌘" : "Ctrl+"}P</kbd>
         </button>
+        <NotificationsBell />
       </header>
 
       <div className="app">
@@ -208,6 +215,7 @@ function MainApp() {
         </div>
       </footer>
 
+      <NotificationsPanel />
       <SettingsView open={settingsOpen} initialTab={settingsTab} initialCreateSpace={initialCreateSpace} onClose={closeSettings} />
       <QuickSearchModal open={searchModalOpen} onClose={() => setSearchModalOpen(false)} />
       {migration && (

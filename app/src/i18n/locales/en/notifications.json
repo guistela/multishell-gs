@@ -1,0 +1,17 @@
+{
+  "bell": "Agent alerts",
+  "bellWith": "Agent alerts: {{count}} pending",
+  "bellWith_other": "Agent alerts: {{count}} pending",
+  "title": "Agent alerts",
+  "empty": "No alerts. Agents report here when they need you.",
+  "emptyHint": "In the terminal: multishell notify \"done\"",
+  "dismiss": "Dismiss",
+  "dismissAll": "Dismiss all",
+  "answer": "Answer",
+  "answerPlaceholder": "Your answer",
+  "cancel": "Cancel",
+  "pending": "Waiting for you",
+  "goToSession": "Go to terminal",
+  "unknownSession": "closed terminal",
+  "level": { "info": "Info", "warn": "Warning", "urgent": "Urgent" }
+}

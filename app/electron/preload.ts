@@ -8,6 +8,7 @@ import {
   type Shortcut,
   type StoreChangedEvent,
   type SessionDragEvent,
+  type NotificationsChangedEvent,
 } from "./ipc";
 
 export interface MultishellBridge {
@@ -20,6 +21,8 @@ export interface MultishellBridge {
   /** Fase 8: outra janela fez `store_set(name)`; recarregue esse store. */
   onStoreChanged(cb: (ev: StoreChangedEvent) => void): () => void;
   onSessionDrag(cb: (ev: SessionDragEvent | null) => void): () => void;
+  /** Mudou alguma coisa nas notificações dos agentes. O payload é o badge. */
+  onNotificationsChanged(cb: (ev: NotificationsChangedEvent) => void): () => void;
   /** Caminho no disco de um File arrastado. "" quando não existe (ex.: imagem vinda do navegador). */
   pathForFile(file: File): string;
   platform: "darwin" | "win32" | "linux";
@@ -65,6 +68,11 @@ const bridge: MultishellBridge = {
     const listener = (_e: IpcRendererEvent, payload: SessionDragEvent | null) => cb(payload);
     ipcRenderer.on(EVENTS.sessionDrag, listener);
     return () => ipcRenderer.removeListener(EVENTS.sessionDrag, listener);
+  },
+  onNotificationsChanged(cb) {
+    const listener = (_e: IpcRendererEvent, payload: NotificationsChangedEvent) => cb(payload);
+    ipcRenderer.on(EVENTS.notificationsChanged, listener);
+    return () => ipcRenderer.removeListener(EVENTS.notificationsChanged, listener);
   },
   // Desde o Electron 32 o File não tem mais `.path`: o caminho só sai pelo webUtils, no preload.
   pathForFile: (file) => {

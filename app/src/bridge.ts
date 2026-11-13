@@ -11,6 +11,11 @@ export interface PtyExit {
 export interface SessionReattached { session_id: string }
 export interface SessionDrag { session_id: string; detached: boolean; action: "detach" | "reattach" | "none" }
 export interface StoreChanged { name: string }
+/** O badge das notificações dos agentes. Chega a cada mudança na central. */
+export interface NotifyCountsEvent {
+  total: number; unread: number; pending: number;
+  bySession: Record<string, number>; bySpace: Record<string, number>;
+}
 
 export interface MultishellBridge {
   /** Canal IPC = nome do command (snake_case). Args chegam ao main como um objeto único. */
@@ -22,6 +27,7 @@ export interface MultishellBridge {
   onSessionReattached(cb: (e: SessionReattached) => void): () => void;
   /** Outra janela fez store_set(name). */
   onStoreChanged(cb: (e: StoreChanged) => void): () => void;
+  onNotificationsChanged(cb: (e: NotifyCountsEvent) => void): () => void;
   onSessionDrag(cb: (ev: SessionDrag | null) => void): () => void;
   /** Caminho no disco de um File arrastado. "" quando não existe (ex.: imagem vinda do navegador). */
   pathForFile(file: File): string;

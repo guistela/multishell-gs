@@ -16,7 +16,7 @@ interface Props {
 
 const SECURITY_KEYS: (keyof SpaceSecurity)[] = [
   "load_user_shell_profile", "share_keychain", "share_ssh", "share_git_config", "inherit_process_env",
-  "block_destructive_commands",
+  "block_destructive_commands", "agent_notifications",
 ];
 const SHARE_KEYS: (keyof SpaceSecurity)[] = ["share_keychain", "share_ssh", "share_git_config", "inherit_process_env", "load_user_shell_profile"];
 

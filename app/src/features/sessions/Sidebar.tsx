@@ -362,6 +362,9 @@ function SpaceGroup({
   onContextMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
 }) {
   const { t } = useTranslation("session");
+  const tn = useTranslation("notifications").t;
+  // Badge por espaço: o que os agentes daquele espaço mandaram e eu não vi.
+  const notifyCount = useAppStore((s) => s.notifyCounts.bySpace[space.id] ?? 0);
   const spaceItems = useSpaceMenuItems({ space, onOpenSettings });
   const reorder = useSpaceReorder(space);
 
@@ -413,6 +416,16 @@ function SpaceGroup({
           >
             <span className="space-working-dot" aria-hidden="true" />
             {workingCount}
+          </span>
+        )}
+        {notifyCount > 0 && (
+          <span
+            className="space-notify-badge"
+            data-testid={`space-notify-${space.id}`}
+            title={tn("bellWith", { count: notifyCount })}
+            aria-label={tn("bellWith", { count: notifyCount })}
+          >
+            {notifyCount > 99 ? "99+" : notifyCount}
           </span>
         )}
         {sessions.length > 0 && (
@@ -469,6 +482,8 @@ function SessionItem({
   onContextMenu: (e: React.MouseEvent, items: MenuItem[]) => void;
 }) {
   const { t } = useTranslation("session");
+  const tn = useTranslation("notifications").t;
+  const notifyCount = useAppStore((s) => s.notifyCounts.bySession[session.id] ?? 0);
   const selected = useAppStore((s) => s.selectedSessionId === session.id);
   const provider = useAppStore((s) => s.providers.find((p) => p.id === session.provider_id));
   const selectSession = useAppStore((s) => s.selectSession);
@@ -551,6 +566,16 @@ function SessionItem({
         </span>
       )}
       {session.detached && <span className="detached-glyph" title={t("detached.detachedHere")}>⧉</span>}
+      {notifyCount > 0 && (
+        <span
+          className="session-notify-badge"
+          data-testid={`session-notify-${session.id}`}
+          title={tn("bellWith", { count: notifyCount })}
+          aria-label={tn("bellWith", { count: notifyCount })}
+        >
+          {notifyCount > 99 ? "99+" : notifyCount}
+        </span>
+      )}
       {session.bypass && <span className="bypass-dot" data-testid="bypass-dot" title={t("sidebar.bypassOn")} />}
     </li>
   );

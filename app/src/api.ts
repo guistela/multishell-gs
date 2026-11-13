@@ -1,6 +1,6 @@
 // Wrappers tipados dos commands IPC. Um lugar só para os nomes.
 import { invoke } from "./bridge";
-import type { MigrationReport, Provider, Space, SpawnPlan, WindowRole } from "./types";
+import type { AgentNotification, MigrationReport, NotifyCounts, Provider, Space, SpawnPlan, WindowRole } from "./types";
 
 export const api = {
   storeGet: <T,>(name: string) => invoke<T | null>("store_get", { name }),
@@ -52,6 +52,14 @@ export const api = {
   secretSet: (spaceId: string, key: string, value: string) => invoke<void>("secret_set", { spaceId, key, value }),
   secretGet: (spaceId: string, key: string) => invoke<string | null>("secret_get", { spaceId, key }),
   secretDelete: (spaceId: string, key: string) => invoke<void>("secret_delete", { spaceId, key }),
+
+  notificationsList: () => invoke<AgentNotification[]>("notifications_list"),
+  notificationsCounts: () => invoke<NotifyCounts>("notifications_counts"),
+  /** `answer` null = cancelada. O agente bloqueado é solto do mesmo jeito. */
+  notificationAnswer: (id: string, answer: string | null) => invoke<void>("notification_answer", { id, answer }),
+  notificationDismiss: (id: string) => invoke<void>("notification_dismiss", { id }),
+  notificationsDismissAll: (sessionId?: string) => invoke<void>("notifications_dismiss_all", { sessionId }),
+  notificationsMarkRead: (sessionId?: string) => invoke<void>("notifications_mark_read", { sessionId }),
 
   logFront: (level: "error" | "warn", message: string) => invoke<void>("log_front", { level, message }),
 
