@@ -25,3 +25,8 @@ minimumReleaseAgeExclude:
   - brace-expansion@5.0.12
   - http-cache-semantics@4.2.1
   - source-map-js@1.2.2
+
+# O app-builder-lib pede minimatch ^10. A correcao so saiu na 11.
+# CVE de ReDoS no brace expansion. Nada no app chama minimatch direto.
+overrides:
+  minimatch@>=7 <11: ^11.0.8
