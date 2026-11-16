@@ -13,5 +13,11 @@
   "pending": "Waiting for you",
   "goToSession": "Go to terminal",
   "unknownSession": "closed terminal",
-  "level": { "info": "Info", "warn": "Warning", "urgent": "Urgent" }
+  "floatingTitle": "Questions waiting",
+  "floatingEmpty": "Nothing waiting for an answer.",
+  "level": {
+    "info": "Info",
+    "warn": "Warning",
+    "urgent": "Urgent"
+  }
 }

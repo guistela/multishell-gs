@@ -57,12 +57,19 @@ function spaceDaSessao(sessionId: string): string | null {
   return ui?.sessions.find((s) => s.id === sessionId)?.space_id ?? null;
 }
 
+/** A flutuante existe só enquanto alguma pergunta espera resposta. */
+function sincronizaFlutuante(counts: { pending: number }): void {
+  if (counts.pending > 0) windows.openFloater();
+  else windows.closeFloater();
+}
+
 /** Guarda em disco, acende o badge do dock e avisa todas as janelas. */
 function anunciar(id: string): void {
   const n = notifications.find(id);
   store?.set("notifications", notifications.toJSON());
   const counts = notifications.counts();
   windows.broadcast(EVENTS.notificationsChanged, counts);
+  sincronizaFlutuante(counts);
   // Badge do dock só existe no macOS e no Linux.
   if (process.platform !== "win32") app.setBadgeCount(counts.total);
   // Dentro do app o painel e o badge bastam. Fora dele, o macOS avisa.
@@ -116,6 +123,7 @@ app.whenReady().then(() => {
   registerHandlers({
     store, pty, userDataDir: app.getPath("userData"), windows,
     notifications, notifyServer, notifySocket: socketPathFor(app.getPath("userData"), process.platform),
+    onCounts: sincronizaFlutuante,
   });
   Menu.setApplicationMenu(buildMenu());
   windows.createMainWindow();
@@ -133,6 +141,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   // Ninguém fica pendurado esperando uma resposta que não vem mais.
+  windows.closeFloater();
   notifyServer.close();
   pty.killAll();
 });

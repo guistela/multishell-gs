@@ -34,7 +34,16 @@ const { FakeBrowserWindow, created } = vi.hoisted(() => {
     loadURL(url: string) { this.loaded = { url }; return Promise.resolve(); }
     loadFile(file: string, options?: any) { this.loaded = { file, options }; return Promise.resolve(); }
     setTitle(t: string) { this.title = t; }
-    show() {}
+    show() { this.shown = "ativa"; }
+    showInactive() { this.shown = "inativa"; }
+    shown: string | null = null;
+    alwaysOnTop: any = null;
+    setAlwaysOnTop(on: boolean, level?: string) { this.alwaysOnTop = { on, level }; }
+    espacos: any = null;
+    setVisibleOnAllWorkspaces(on: boolean, o?: any) { this.espacos = { on, ...o }; }
+    isVisible() { return !this.destroyed; }
+    focus() { this.focused = true; }
+    focused = false;
     isDestroyed() { return this.destroyed; }
     /** Simula o fechamento: `close` (cancelável) → `closed`. */
     close() {
@@ -48,9 +57,13 @@ const { FakeBrowserWindow, created } = vi.hoisted(() => {
   return { FakeBrowserWindow, created };
 });
 
-vi.mock("electron", () => ({ BrowserWindow: FakeBrowserWindow }));
+const tela = { workArea: { x: 0, y: 25, width: 1440, height: 875 } };
+vi.mock("electron", () => ({
+  BrowserWindow: FakeBrowserWindow,
+  screen: { getPrimaryDisplay: () => tela, getDisplayNearestPoint: () => tela },
+}));
 
-import { WindowManager } from "../windows";
+import { FLOATER_MARGIN, FLOATER_SIZE, WindowManager, floaterBounds } from "../windows";
 
 const opts = { preload: "/p/index.cjs", indexHtml: "/r/index.html" };
 
@@ -152,5 +165,78 @@ describe("navegação e janelas novas", () => {
     const ev = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
     win.webContents.emit("will-navigate", ev, "https://exemplo.com");
     expect(ev.defaultPrevented).toBe(true);
+  });
+});
+
+// A janela flutuante das perguntas: fica sobre tudo, não rouba o foco e só
+// existe enquanto há pergunta esperando.
+describe("janela flutuante das perguntas", () => {
+  it("floaterBounds põe a janela no canto inferior direito da área útil", () => {
+    const b = floaterBounds({ x: 0, y: 25, width: 1440, height: 875 });
+    expect(b).toEqual({
+      x: 1440 - FLOATER_SIZE.width - FLOATER_MARGIN,
+      y: 25 + 875 - FLOATER_SIZE.height - FLOATER_MARGIN,
+      width: FLOATER_SIZE.width,
+      height: FLOATER_SIZE.height,
+    });
+  });
+
+  // Monitor pequeno não pode jogar a janela para fora da tela.
+  it("floaterBounds cabe numa área útil menor que a janela", () => {
+    const b = floaterBounds({ x: 100, y: 0, width: 200, height: 150 });
+    expect(b).toEqual({ x: 100, y: 0, width: 200, height: 150 });
+  });
+
+  it("openFloater abre sem roubar o foco, sobre tudo, com o hash /asks", () => {
+    const wm = new WindowManager(opts);
+    wm.createMainWindow();
+    const w = wm.openFloater() as any;
+    expect(w.loaded.options?.hash).toBe("/asks");
+    expect(w.opts).toMatchObject({ frame: false, skipTaskbar: true, alwaysOnTop: true, resizable: false });
+    expect(w.opts.webPreferences).toMatchObject({ preload: "/p/index.cjs", contextIsolation: true, sandbox: true });
+    // Nunca `show()`: ela não pode tirar o foco do que eu estou fazendo.
+    expect(w.shown).toBeNull();
+    w.emit("ready-to-show");
+    expect(w.shown).toBe("inativa");
+    expect(w.alwaysOnTop).toEqual({ on: true, level: "floating" });
+    // Sobre app em tela cheia também, senão ela não serve para nada.
+    expect(w.espacos).toEqual({ on: true, visibleOnFullScreen: true });
+  });
+
+  it("openFloater é idempotente: a segunda chamada não abre outra", () => {
+    const wm = new WindowManager(opts);
+    wm.createMainWindow();
+    const w = wm.openFloater();
+    expect(wm.openFloater()).toBe(w);
+    expect(created.filter((c) => c.loaded.options?.hash === "/asks")).toHaveLength(1);
+  });
+
+  it("closeFloater fecha e deixa abrir de novo depois", () => {
+    const wm = new WindowManager(opts);
+    wm.createMainWindow();
+    const w = wm.openFloater() as any;
+    wm.closeFloater();
+    expect(w.destroyed).toBe(true);
+    expect(wm.floater).toBeNull();
+    wm.closeFloater();
+    expect(wm.openFloater()).not.toBe(w);
+  });
+
+  // Fechar no X da janela não pode fazer ela voltar sozinha na mesma pergunta.
+  it("fechar a flutuante na mão solta a referência", () => {
+    const wm = new WindowManager(opts);
+    wm.createMainWindow();
+    const w = wm.openFloater() as any;
+    w.close();
+    expect(wm.floater).toBeNull();
+  });
+
+  it("fechar a principal fecha a flutuante", () => {
+    const wm = new WindowManager(opts);
+    const main = wm.createMainWindow() as any;
+    const w = wm.openFloater() as any;
+    main.close();
+    expect(w.destroyed).toBe(true);
+    expect(wm.floater).toBeNull();
   });
 });

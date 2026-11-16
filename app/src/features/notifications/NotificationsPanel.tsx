@@ -9,7 +9,7 @@ import type { AgentNotification } from "../../types";
 import "./notifications.css";
 
 /** Pergunta que ainda espera por mim. */
-function pendente(n: AgentNotification): boolean {
+export function pendente(n: AgentNotification): boolean {
   return n.ask !== null && n.answer === undefined;
 }
 
@@ -25,7 +25,7 @@ function Horario({ iso }: { iso: string }) {
 }
 
 /** Campo de resposta livre. Estado local: cada pergunta tem o seu. */
-function CampoResposta({ id, placeholder }: { id: string; placeholder: string }) {
+export function CampoResposta({ id, placeholder }: { id: string; placeholder: string }) {
   const { t } = useTranslation("notifications");
   const [texto, setTexto] = useState("");
   const responder = useAppStore((s) => s.answerNotification);

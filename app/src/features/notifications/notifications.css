@@ -258,3 +258,90 @@
   outline: none;
   border-color: #1f6feb;
 }
+
+/* ---------------------------------------------------------------------------
+   Janela flutuante das perguntas (hash #/asks). Sem moldura: o cabeçalho é
+   a área de arraste e tudo que é clicável precisa de `no-drag`.
+   --------------------------------------------------------------------------- */
+.floating-asks {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-elevated, #252526);
+  border: 1px solid var(--border, #3c3c3c);
+  border-radius: 10px;
+  color: var(--fg, #ddd);
+  font-size: 12px;
+}
+
+.floating-asks-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border, #3c3c3c);
+  background: var(--bg-subtle, #2d2d30);
+}
+
+.floating-asks-head.drag {
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.floating-asks-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.floating-asks-count {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--warn, #d7a60a);
+  color: #1e1e1e;
+  font-weight: 700;
+  text-align: center;
+}
+
+.floating-asks-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.floating-asks-empty {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 16px 12px;
+  color: var(--fg-muted, #999);
+}
+
+.floating-ask {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border, #3c3c3c);
+}
+
+.floating-ask:last-child { border-bottom: none; }
+
+.floating-ask-title {
+  display: block;
+  font-size: 12.5px;
+}
+
+.floating-ask-source {
+  display: block;
+  margin-top: 2px;
+  color: var(--fg-muted, #999);
+  font-size: 11px;
+}
+
+/* Clique precisa escapar da área de arraste do cabeçalho e da janela. */
+.floating-asks button,
+.floating-asks input {
+  -webkit-app-region: no-drag;
+}

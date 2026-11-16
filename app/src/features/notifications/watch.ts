@@ -5,10 +5,12 @@
 import { bridge } from "../../bridge";
 import { useAppStore } from "../../store";
 
-/** Registra o ouvinte. Devolve a função que o desliga. */
-export function watchNotifications(): () => void {
+/** Registra o ouvinte. Devolve a função que o desliga.
+ *  `sempre` = recarrega a lista a cada mudança, com painel aberto ou não.
+ *  A janela flutuante das perguntas precisa disso: a lista é tudo que ela mostra. */
+export function watchNotifications(sempre = false): () => void {
   return bridge().onNotificationsChanged((counts) => {
     useAppStore.setState({ notifyCounts: counts });
-    if (useAppStore.getState().notificationsOpen) void useAppStore.getState().loadNotifications();
+    if (sempre || useAppStore.getState().notificationsOpen) void useAppStore.getState().loadNotifications();
   });
 }

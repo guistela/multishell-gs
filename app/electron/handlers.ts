@@ -86,6 +86,9 @@ export interface HandlerDeps {
   notifyServer?: Pick<NotifyServer, "register" | "unregister" | "deliverAnswers">;
   /** Endereço do socket local. Vai para o ambiente da sessão. */
   notifySocket?: string;
+  /** Avisado a cada mudança na contagem. O main usa para abrir e fechar a
+   *  janela flutuante das perguntas. */
+  onCounts?: (counts: ReturnType<NotificationCenter["counts"]>) => void;
 }
 
 export interface HandlerContext {
@@ -116,7 +119,9 @@ export function createHandlers(deps: HandlerDeps): Handlers {
   const notifyChanged = (): void => {
     if (!notifications) return;
     store.set(NOTIFICATIONS_STORE, notifications.toJSON());
-    broadcast(EVENTS.notificationsChanged, notifications.counts());
+    const counts = notifications.counts();
+    broadcast(EVENTS.notificationsChanged, counts);
+    deps.onCounts?.(counts);
   };
 
   const writeGuard = new WriteGuard();

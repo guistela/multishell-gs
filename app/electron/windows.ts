@@ -23,9 +23,29 @@ export interface WindowSender {
 
 const isMac = process.platform === "darwin";
 
+/** Tamanho da janela flutuante das perguntas. Pequena de propósito. */
+export const FLOATER_SIZE = { width: 380, height: 300 };
+/** Folga da borda da tela. */
+export const FLOATER_MARGIN = 16;
+
+/** Canto inferior direito da área útil: fora do caminho e sempre à vista.
+ *  Numa tela menor que a janela, encosta no canto em vez de sair dela. */
+export function floaterBounds(workArea: { x: number; y: number; width: number; height: number }) {
+  const width = Math.min(FLOATER_SIZE.width, workArea.width);
+  const height = Math.min(FLOATER_SIZE.height, workArea.height);
+  return {
+    x: workArea.x + Math.max(0, workArea.width - width - FLOATER_MARGIN),
+    y: workArea.y + Math.max(0, workArea.height - height - FLOATER_MARGIN),
+    width,
+    height,
+  };
+}
+
 export class WindowManager {
   main: BrowserWindow | null = null;
   readonly detached = new Map<string, BrowserWindow>();
+  /** Janela flutuante das perguntas. Existe só enquanto alguma espera resposta. */
+  floater: BrowserWindow | null = null;
   /** Janelas em fechamento programático: o `close` delas não dispara reattach. */
   private readonly closingProgrammatically = new Set<string>();
   private quitting = false;
@@ -78,6 +98,7 @@ export class WindowManager {
       this.quitting = true;
       if (this.main === win) this.main = null;
       this.closeAllDetached();
+      this.closeFloater();
       this.opts.onMainClosed?.();
     });
 
@@ -132,6 +153,55 @@ export class WindowManager {
       void win.loadFile(this.opts.indexHtml, { hash });
     }
     return win;
+  }
+
+  /** Abre a janela flutuante das perguntas. Idempotente.
+   *
+   *  Ela não pode roubar o foco: `showInactive` em vez de `show`. E fica sobre
+   *  tudo, inclusive sobre app em tela cheia, senão não dá para responder
+   *  "quando eu puder" sem trocar de janela primeiro. */
+  openFloater(): BrowserWindow {
+    const atual = this.floater;
+    if (atual && !atual.isDestroyed()) return atual;
+
+    const win = new BrowserWindow({
+      ...floaterBounds(screen.getPrimaryDisplay().workArea),
+      title: "Multishell",
+      show: false,
+      frame: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      backgroundColor: "#1e1e1e",
+      webPreferences: this.webPreferences(),
+    });
+    this.floater = win;
+    this.lockNavigation(win);
+    win.setAlwaysOnTop(true, "floating");
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    win.once("ready-to-show", () => win.showInactive());
+    win.on("closed", () => {
+      if (this.floater === win) this.floater = null;
+    });
+
+    const hash = "/asks";
+    if (process.env.ELECTRON_RENDERER_URL) {
+      void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}#${hash}`);
+    } else {
+      void win.loadFile(this.opts.indexHtml, { hash });
+    }
+    return win;
+  }
+
+  /** Fecha a flutuante. Sem pergunta esperando ela não tem razão de existir. */
+  closeFloater(): void {
+    const win = this.floater;
+    this.floater = null;
+    if (win && !win.isDestroyed()) win.close();
   }
 
   /** Fecha a janela destacada (se houver) e avisa a principal. O PTY continua vivo. */

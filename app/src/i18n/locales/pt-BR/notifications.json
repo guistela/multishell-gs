@@ -13,5 +13,11 @@
   "pending": "Esperando você",
   "goToSession": "Ir para o terminal",
   "unknownSession": "terminal fechado",
-  "level": { "info": "Aviso", "warn": "Atenção", "urgent": "Urgente" }
+  "floatingTitle": "Perguntas esperando",
+  "floatingEmpty": "Nada esperando resposta.",
+  "level": {
+    "info": "Aviso",
+    "warn": "Atenção",
+    "urgent": "Urgente"
+  }
 }
